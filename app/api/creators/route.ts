@@ -16,6 +16,7 @@ export async function GET(request: Request) {
     processingStatus: c.processing_status,
     needsReview: Boolean(c.needs_review),
     reviewStatus: c.review_status,
+    duplicateOfCreatorId: c.duplicate_of_creator_id,
   }));
 
   return NextResponse.json({ creators });
