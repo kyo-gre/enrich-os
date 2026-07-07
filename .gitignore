@@ -49,3 +49,6 @@ next-env.d.ts
 !/data/exports/
 /data/exports/*
 !/data/exports/.gitkeep
+
+.vercel
+.env*
