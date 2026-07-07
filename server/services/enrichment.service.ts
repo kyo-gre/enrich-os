@@ -29,7 +29,7 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
     rawPlatform: creator.raw_platform ?? undefined,
     raw: {},
   });
-  addProcessingLog({
+  await addProcessingLog({
     creatorId: creator.id,
     step: "normalized",
     status: "success",
@@ -41,17 +41,17 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
   // re-running extraction and re-scraping the same profile. A conflict
   // (different keys pointing at different cached identities) is flagged
   // rather than resolved automatically — see lookupCachedIdentity's policy.
-  const cacheLookup = lookupCachedIdentity(normalized);
+  const cacheLookup = await lookupCachedIdentity(normalized);
 
   if (cacheLookup.status === "hit") {
     const cached = cacheLookup.identity;
-    addProcessingLog({
+    await addProcessingLog({
       creatorId: creator.id,
       step: "cache_lookup",
       status: "success",
       detail: { identityCacheId: cached.id },
     });
-    applyResolvedIdentity(creator.id, {
+    await applyResolvedIdentity(creator.id, {
       resolvedFirstName: cached.first_name ?? undefined,
       resolvedLastName: cached.last_name ?? undefined,
       resolvedDisplayName: cached.display_name ?? undefined,
@@ -66,7 +66,7 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
       needsReview: false,
       identityCacheId: cached.id,
     });
-    addProcessingLog({
+    await addProcessingLog({
       creatorId: creator.id,
       step: "final_selection",
       status: "success",
@@ -77,7 +77,7 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
 
   const cacheConflict = cacheLookup.status === "conflict" ? cacheLookup.identities : undefined;
   if (cacheConflict) {
-    addProcessingLog({
+    await addProcessingLog({
       creatorId: creator.id,
       step: "cache_lookup",
       status: "failed",
@@ -87,7 +87,7 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
       },
     });
   } else {
-    addProcessingLog({
+    await addProcessingLog({
       creatorId: creator.id,
       step: "cache_lookup",
       status: "skipped",
@@ -97,7 +97,7 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
   const candidates: NameCandidate[] = [];
 
   const fullNameCandidate = extractFromFullName(normalized);
-  addProcessingLog({
+  await addProcessingLog({
     creatorId: creator.id,
     step: "parsed_full_name",
     status: fullNameCandidate ? "success" : "skipped",
@@ -106,7 +106,7 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
   if (fullNameCandidate) candidates.push(fullNameCandidate);
 
   const emailCandidate = extractFromEmail(normalized);
-  addProcessingLog({
+  await addProcessingLog({
     creatorId: creator.id,
     step: "parsed_email",
     status: emailCandidate ? "success" : "skipped",
@@ -120,7 +120,7 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
   try {
     const scrapeOutcome = await scrapeProfile(normalized.profileUrl);
     if (scrapeOutcome) {
-      addProcessingLog({
+      await addProcessingLog({
         creatorId: creator.id,
         step: `scraped_profile_${scrapeOutcome.platform}`,
         status: scrapeOutcome.error
@@ -134,7 +134,7 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
       });
       if (scrapeOutcome.candidate) candidates.push(scrapeOutcome.candidate);
       if (scrapeOutcome.rawSnapshot && scrapeOutcome.fetchedVia) {
-        saveProfileSnapshot({
+        await saveProfileSnapshot({
           creatorId: creator.id,
           platform: scrapeOutcome.platform,
           fetchedVia: scrapeOutcome.fetchedVia,
@@ -143,7 +143,7 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
       }
     }
   } catch (error) {
-    addProcessingLog({
+    await addProcessingLog({
       creatorId: creator.id,
       step: "scraped_profile",
       status: "failed",
@@ -158,7 +158,7 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
     // human review rather than trusting the fresh result outright.
     resolved = { ...resolved, processingStatus: "needs_review", needsReview: true };
   }
-  addProcessingLog({
+  await addProcessingLog({
     creatorId: creator.id,
     step: "confidence_calculated",
     status: "success",
@@ -172,8 +172,10 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
   // Skip writing to the cache when a conflict was flagged — doing so would
   // either pick a side or blur two identities together (see
   // upsertIdentityCache's docstring for the same guard on its own reads).
-  const cacheEntry = cacheConflict ? undefined : upsertIdentityCache(resolved, normalized);
-  addProcessingLog({
+  const cacheEntry = cacheConflict
+    ? undefined
+    : await upsertIdentityCache(resolved, normalized);
+  await addProcessingLog({
     creatorId: creator.id,
     step: "cache_write",
     status: cacheEntry ? "success" : "skipped",
@@ -190,7 +192,7 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
   // normalized input so the resolved identity — and the identity-cache keys
   // (email/username/profile_url) built from it — are never missing a field
   // just because the winner was a different candidate source.
-  applyResolvedIdentity(creator.id, {
+  await applyResolvedIdentity(creator.id, {
     resolvedFirstName: resolved.firstName,
     resolvedLastName: resolved.lastName,
     resolvedDisplayName: resolved.displayName,
@@ -206,7 +208,7 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
     identityCacheId: cacheEntry?.id,
   });
 
-  addProcessingLog({
+  await addProcessingLog({
     creatorId: creator.id,
     step: "final_selection",
     status: resolved.processingStatus === "failed" ? "failed" : "success",
@@ -217,7 +219,7 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
 export async function runEnrichmentForImport(
   importId: string,
 ): Promise<{ processed: number; failed: number }> {
-  const creators = listCreatorsByImport(importId);
+  const creators = await listCreatorsByImport(importId);
   let failed = 0;
   for (const creator of creators) {
     try {
@@ -227,7 +229,7 @@ export async function runEnrichmentForImport(
       // or scoring) must not abort the rest of the import — log it and
       // move on to the next creator.
       failed += 1;
-      addProcessingLog({
+      await addProcessingLog({
         creatorId: creator.id,
         step: "enrich_one",
         status: "failed",

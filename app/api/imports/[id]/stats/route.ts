@@ -6,6 +6,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const stats = getCreatorStats(id);
+  const stats = await getCreatorStats(id);
   return NextResponse.json(stats);
 }

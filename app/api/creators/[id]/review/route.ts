@@ -20,8 +20,8 @@ export async function POST(
   }
 
   try {
-    if (action === "approve") approveCreator(id);
-    else ignoreCreator(id);
+    if (action === "approve") await approveCreator(id);
+    else await ignoreCreator(id);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to update review status" },

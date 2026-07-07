@@ -29,8 +29,11 @@ export interface ExportResult {
   rowCount: number;
 }
 
-export function exportCreators(importId: string, type: ExportType): ExportResult {
-  const creators = listCreatorsByImport(importId).filter(isExportable);
+export async function exportCreators(
+  importId: string,
+  type: ExportType,
+): Promise<ExportResult> {
+  const creators = (await listCreatorsByImport(importId)).filter(isExportable);
   const exportedAt = Date.now();
 
   const rows = creators.map((creator) => {
@@ -58,7 +61,7 @@ export function exportCreators(importId: string, type: ExportType): ExportResult
   const csv = Papa.unparse(rows);
   const fileName = `export-${type}-${importId}-${exportedAt}.csv`;
 
-  recordExport({ importId, exportType: type, fileName, rowCount: rows.length });
+  await recordExport({ importId, exportType: type, fileName, rowCount: rows.length });
 
   return { csv, fileName, rowCount: rows.length };
 }

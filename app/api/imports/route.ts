@@ -25,7 +25,7 @@ export async function POST(request: Request) {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const result = ingestFile(file.name, fileType, buffer);
+  const result = await ingestFile(file.name, fileType, buffer);
 
   return NextResponse.json(result);
 }

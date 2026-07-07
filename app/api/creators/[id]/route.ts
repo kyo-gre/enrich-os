@@ -14,12 +14,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const creator = getCreator(id);
+  const creator = await getCreator(id);
   if (!creator) {
     return NextResponse.json({ error: "Creator not found" }, { status: 404 });
   }
 
-  const logs = listProcessingLogsForCreator(id).map((log) => ({
+  const logs = (await listProcessingLogsForCreator(id)).map((log) => ({
     id: log.id,
     step: log.step,
     status: log.status,
@@ -27,7 +27,7 @@ export async function GET(
     createdAt: log.created_at,
   }));
 
-  const snapshots = listProfileSnapshotsForCreator(id).map((snapshot) => ({
+  const snapshots = (await listProfileSnapshotsForCreator(id)).map((snapshot) => ({
     id: snapshot.id,
     platform: snapshot.platform,
     fetchedVia: snapshot.fetched_via,

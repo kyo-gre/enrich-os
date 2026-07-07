@@ -13,6 +13,6 @@ export async function POST(
     return NextResponse.json({ error: "Missing mapping" }, { status: 400 });
   }
 
-  const result = confirmColumnMapping(id, body.mapping);
+  const result = await confirmColumnMapping(id, body.mapping);
   return NextResponse.json(result);
 }

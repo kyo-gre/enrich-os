@@ -1,5 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { db } from "../client";
+import type { InArgs } from "@libsql/client";
+import { libsqlClient } from "../libsql-client";
+
+/**
+ * First repository migrated to the libSQL connection path (Phase 2 of the
+ * deployment hardening effort — see docs/DEPLOYMENT_HARDENING.md). Chosen
+ * because it has zero callers today (unused scaffold, see commit
+ * `28ad12a`), so this migration changes no observable application
+ * behavior. Same SQL text and parameter binding as before; only the
+ * client API and `async`/`await` changed.
+ */
 
 export interface JobRow {
   id: string;
@@ -26,11 +36,11 @@ export interface JobItemRow {
   updated_at: number;
 }
 
-export function createJob(input: {
+export async function createJob(input: {
   importId: string;
   totalRows: number;
   pipelineVersion: string;
-}): JobRow {
+}): Promise<JobRow> {
   const now = Date.now();
   const row: JobRow = {
     id: randomUUID(),
@@ -46,27 +56,32 @@ export function createJob(input: {
     updated_at: now,
     completed_at: null,
   };
-  db.prepare(
-    `INSERT INTO jobs (
+  await libsqlClient.execute({
+    sql: `INSERT INTO jobs (
       id, import_id, status, total_rows, processed_rows, last_processed_row_index,
       current_creator_id, pipeline_version, error, started_at, updated_at, completed_at
     ) VALUES (
-      @id, @import_id, @status, @total_rows, @processed_rows, @last_processed_row_index,
-      @current_creator_id, @pipeline_version, @error, @started_at, @updated_at, @completed_at
+      :id, :import_id, :status, :total_rows, :processed_rows, :last_processed_row_index,
+      :current_creator_id, :pipeline_version, :error, :started_at, :updated_at, :completed_at
     )`,
-  ).run(row);
+    args: row as unknown as InArgs,
+  });
   return row;
 }
 
-export function getJob(id: string): JobRow | undefined {
-  return db.prepare<[string], JobRow>("SELECT * FROM jobs WHERE id = ?").get(id);
+export async function getJob(id: string): Promise<JobRow | undefined> {
+  const result = await libsqlClient.execute({
+    sql: "SELECT * FROM jobs WHERE id = ?",
+    args: [id],
+  });
+  return result.rows[0] as unknown as JobRow | undefined;
 }
 
-export function createJobItem(input: {
+export async function createJobItem(input: {
   jobId: string;
   creatorId: string;
   rowIndex: number;
-}): JobItemRow {
+}): Promise<JobItemRow> {
   const now = Date.now();
   const row: JobItemRow = {
     id: randomUUID(),
@@ -77,55 +92,61 @@ export function createJobItem(input: {
     attempts: 0,
     updated_at: now,
   };
-  db.prepare(
-    `INSERT INTO job_items (id, job_id, creator_id, row_index, status, attempts, updated_at)
-     VALUES (@id, @job_id, @creator_id, @row_index, @status, @attempts, @updated_at)`,
-  ).run(row);
+  await libsqlClient.execute({
+    sql: `INSERT INTO job_items (id, job_id, creator_id, row_index, status, attempts, updated_at)
+     VALUES (:id, :job_id, :creator_id, :row_index, :status, :attempts, :updated_at)`,
+    args: row as unknown as InArgs,
+  });
   return row;
 }
 
 /** Resume checkpoint: next unfinished row in job order. */
-export function nextPendingJobItem(jobId: string): JobItemRow | undefined {
-  return db
-    .prepare<[string], JobItemRow>(
-      `SELECT * FROM job_items WHERE job_id = ? AND status IN ('pending', 'failed') ORDER BY row_index ASC LIMIT 1`,
-    )
-    .get(jobId);
+export async function nextPendingJobItem(
+  jobId: string,
+): Promise<JobItemRow | undefined> {
+  const result = await libsqlClient.execute({
+    sql: `SELECT * FROM job_items WHERE job_id = ? AND status IN ('pending', 'failed') ORDER BY row_index ASC LIMIT 1`,
+    args: [jobId],
+  });
+  return result.rows[0] as unknown as JobItemRow | undefined;
 }
 
-export function updateJobItemStatus(
+export async function updateJobItemStatus(
   id: string,
   status: JobItemRow["status"],
-): void {
-  db.prepare(
-    "UPDATE job_items SET status = ?, attempts = attempts + 1, updated_at = ? WHERE id = ?",
-  ).run(status, Date.now(), id);
+): Promise<void> {
+  await libsqlClient.execute({
+    sql: "UPDATE job_items SET status = ?, attempts = attempts + 1, updated_at = ? WHERE id = ?",
+    args: [status, Date.now(), id],
+  });
 }
 
-export function advanceJobProgress(
+export async function advanceJobProgress(
   jobId: string,
   processedRows: number,
   lastProcessedRowIndex: number,
   currentCreatorId: string | null,
-): void {
-  db.prepare(
-    `UPDATE jobs SET processed_rows = ?, last_processed_row_index = ?, current_creator_id = ?, updated_at = ? WHERE id = ?`,
-  ).run(processedRows, lastProcessedRowIndex, currentCreatorId, Date.now(), jobId);
+): Promise<void> {
+  await libsqlClient.execute({
+    sql: `UPDATE jobs SET processed_rows = ?, last_processed_row_index = ?, current_creator_id = ?, updated_at = ? WHERE id = ?`,
+    args: [processedRows, lastProcessedRowIndex, currentCreatorId, Date.now(), jobId],
+  });
 }
 
-export function setJobStatus(
+export async function setJobStatus(
   id: string,
   status: JobRow["status"],
   error?: string,
-): void {
+): Promise<void> {
   const now = Date.now();
-  db.prepare(
-    `UPDATE jobs SET
+  await libsqlClient.execute({
+    sql: `UPDATE jobs SET
       status = ?,
       error = ?,
       started_at = CASE WHEN ? = 'running' AND started_at IS NULL THEN ? ELSE started_at END,
       completed_at = CASE WHEN ? IN ('completed','failed') THEN ? ELSE completed_at END,
       updated_at = ?
      WHERE id = ?`,
-  ).run(status, error ?? null, status, now, status, now, now, id);
+    args: [status, error ?? null, status, now, status, now, now, id],
+  });
 }

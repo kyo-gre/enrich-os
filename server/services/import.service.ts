@@ -24,22 +24,22 @@ export interface IngestFileResult {
   rowCount: number;
 }
 
-export function ingestFile(
+export async function ingestFile(
   fileName: string,
   fileType: "csv" | "xlsx",
   buffer: Buffer,
-): IngestFileResult {
+): Promise<IngestFileResult> {
   const { headers, rows } = parseImportFile(buffer, fileType);
-  const importRow = createImport({ fileName, fileType });
+  const importRow = await createImport({ fileName, fileType });
 
-  rows.forEach((row, index) => {
-    createCreator({
+  for (const [index, row] of rows.entries()) {
+    await createCreator({
       importId: importRow.id,
       rowIndex: index,
       rawPayload: row,
       pipelineVersion: PIPELINE_VERSION,
     });
-  });
+  }
 
   return {
     importId: importRow.id,
@@ -55,11 +55,11 @@ export interface ConfirmColumnMappingResult {
   previewRows: Array<ReturnType<typeof normalizeCreator>>;
 }
 
-export function confirmColumnMapping(
+export async function confirmColumnMapping(
   importId: string,
   mapping: ColumnMapping,
-): ConfirmColumnMappingResult {
-  const creators = listCreatorsByImport(importId);
+): Promise<ConfirmColumnMappingResult> {
+  const creators = await listCreatorsByImport(importId);
 
   const previewRows: Array<ReturnType<typeof normalizeCreator>> = [];
   for (const creator of creators) {
@@ -67,7 +67,7 @@ export function confirmColumnMapping(
       ? (JSON.parse(creator.raw_payload) as Record<string, unknown>)
       : {};
     const mapped = mapRowToCreatorInput(rawPayload, mapping);
-    setRawMappedFields(creator.id, {
+    await setRawMappedFields(creator.id, {
       rawFullName: mapped.rawFullName,
       rawUsername: mapped.rawUsername,
       rawEmail: mapped.rawEmail,
@@ -80,7 +80,7 @@ export function confirmColumnMapping(
     }
   }
 
-  updateImportMapping(importId, mapping, creators.length);
+  await updateImportMapping(importId, mapping, creators.length);
 
   return { rowCount: creators.length, previewRows };
 }

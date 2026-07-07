@@ -7,7 +7,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Missing importId" }, { status: 400 });
   }
 
-  const creators = listCreatorsByImport(importId).map((c) => ({
+  const creators = (await listCreatorsByImport(importId)).map((c) => ({
     id: c.id,
     firstName: c.resolved_first_name,
     lastName: c.resolved_last_name,

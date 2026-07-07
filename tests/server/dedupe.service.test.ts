@@ -50,32 +50,32 @@ beforeEach(() => {
 });
 
 describe("findDuplicateCandidates", () => {
-  it("flags two creators in the same import sharing an email", () => {
-    listCreatorsByImport.mockReturnValueOnce([
+  it("flags two creators in the same import sharing an email", async () => {
+    listCreatorsByImport.mockResolvedValueOnce([
       makeCreator({ id: "a", resolved_first_name: "Jane", resolved_email: "jane@example.com" }),
       makeCreator({ id: "b", resolved_first_name: "J.", resolved_email: "jane@example.com" }),
     ]);
 
-    const groups = findDuplicateCandidates("import-1");
+    const groups = await findDuplicateCandidates("import-1");
 
     expect(groups).toHaveLength(1);
     expect(groups[0].keyType).toBe("email");
     expect(groups[0].creators.map((c) => c.id).sort()).toEqual(["a", "b"]);
   });
 
-  it("falls back to raw fields when resolved fields are missing", () => {
-    listCreatorsByImport.mockReturnValueOnce([
+  it("falls back to raw fields when resolved fields are missing", async () => {
+    listCreatorsByImport.mockResolvedValueOnce([
       makeCreator({ id: "a", raw_username: "@jenn" }),
       makeCreator({ id: "b", raw_username: "jenn" }),
     ]);
 
-    const groups = findDuplicateCandidates("import-1");
+    const groups = await findDuplicateCandidates("import-1");
     expect(groups).toHaveLength(1);
     expect(groups[0].keyType).toBe("username");
   });
 
-  it("excludes creators already marked as a duplicate of another", () => {
-    listCreatorsByImport.mockReturnValueOnce([
+  it("excludes creators already marked as a duplicate of another", async () => {
+    listCreatorsByImport.mockResolvedValueOnce([
       makeCreator({ id: "a", resolved_email: "jane@example.com" }),
       makeCreator({
         id: "b",
@@ -85,7 +85,7 @@ describe("findDuplicateCandidates", () => {
       makeCreator({ id: "c", resolved_email: "jane@example.com" }),
     ]);
 
-    const groups = findDuplicateCandidates("import-1");
+    const groups = await findDuplicateCandidates("import-1");
 
     // "b" already resolved via a prior merge — only "a" and "c" remain
     // as unresolved candidates for the same email.
@@ -93,12 +93,12 @@ describe("findDuplicateCandidates", () => {
     expect(groups[0].creators.map((c) => c.id).sort()).toEqual(["a", "c"]);
   });
 
-  it("does not flag records with no shared keys, even with similar names", () => {
-    listCreatorsByImport.mockReturnValueOnce([
+  it("does not flag records with no shared keys, even with similar names", async () => {
+    listCreatorsByImport.mockResolvedValueOnce([
       makeCreator({ id: "a", resolved_first_name: "John", resolved_last_name: "Doe" }),
       makeCreator({ id: "b", resolved_first_name: "Johnny" }),
     ]);
 
-    expect(findDuplicateCandidates("import-1")).toEqual([]);
+    expect(await findDuplicateCandidates("import-1")).toEqual([]);
   });
 });

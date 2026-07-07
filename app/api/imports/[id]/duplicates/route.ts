@@ -6,6 +6,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const groups = findDuplicateCandidates(id);
+  const groups = await findDuplicateCandidates(id);
   return NextResponse.json({ groups });
 }

@@ -90,28 +90,28 @@ beforeEach(() => {
 });
 
 describe("approveCreator / ignoreCreator", () => {
-  it("sets the review status and logs it", () => {
-    approveCreator("creator-1");
+  it("sets the review status and logs it", async () => {
+    await approveCreator("creator-1");
     expect(setReviewStatus).toHaveBeenCalledWith("creator-1", "approved");
 
-    ignoreCreator("creator-1");
+    await ignoreCreator("creator-1");
     expect(setReviewStatus).toHaveBeenCalledWith("creator-1", "ignored");
   });
 });
 
 describe("applyCreatorOverride", () => {
-  it("throws when the creator doesn't exist", () => {
-    getCreator.mockReturnValueOnce(undefined);
-    expect(() => applyCreatorOverride("missing", "firstName", "Jane")).toThrow(
-      "Creator not found",
-    );
+  it("throws when the creator doesn't exist", async () => {
+    getCreator.mockResolvedValueOnce(undefined);
+    await expect(
+      applyCreatorOverride("missing", "firstName", "Jane"),
+    ).rejects.toThrow("Creator not found");
   });
 
-  it("creates a fallback identity_cache entry when the creator was never cached", () => {
-    getCreator.mockReturnValue(makeCreator({ identity_cache_id: null }));
-    createIdentityCache.mockReturnValueOnce({ id: "new-cache-1" } as never);
+  it("creates a fallback identity_cache entry when the creator was never cached", async () => {
+    getCreator.mockResolvedValue(makeCreator({ identity_cache_id: null }));
+    createIdentityCache.mockResolvedValueOnce({ id: "new-cache-1" } as never);
 
-    applyCreatorOverride("creator-1", "firstName", "Janet", "typo fix");
+    await applyCreatorOverride("creator-1", "firstName", "Janet", "typo fix");
 
     expect(createIdentityCache).toHaveBeenCalledTimes(1);
     expect(applyManualOverride).toHaveBeenCalledWith(
@@ -123,10 +123,10 @@ describe("applyCreatorOverride", () => {
     );
   });
 
-  it("reuses the existing identity_cache entry when the creator already has one", () => {
-    getCreator.mockReturnValue(makeCreator({ identity_cache_id: "cache-existing" }));
+  it("reuses the existing identity_cache entry when the creator already has one", async () => {
+    getCreator.mockResolvedValue(makeCreator({ identity_cache_id: "cache-existing" }));
 
-    applyCreatorOverride("creator-1", "lastName", "Smith");
+    await applyCreatorOverride("creator-1", "lastName", "Smith");
 
     expect(createIdentityCache).not.toHaveBeenCalled();
     expect(applyManualOverride).toHaveBeenCalledWith(
@@ -138,10 +138,10 @@ describe("applyCreatorOverride", () => {
     );
   });
 
-  it("marks the override as manual_override with full confidence and clears needsReview", () => {
-    getCreator.mockReturnValue(makeCreator({ identity_cache_id: "cache-1" }));
+  it("marks the override as manual_override with full confidence and clears needsReview", async () => {
+    getCreator.mockResolvedValue(makeCreator({ identity_cache_id: "cache-1" }));
 
-    applyCreatorOverride("creator-1", "firstName", "Janet");
+    await applyCreatorOverride("creator-1", "firstName", "Janet");
 
     expect(applyResolvedIdentity).toHaveBeenCalledWith(
       "creator-1",
@@ -160,30 +160,32 @@ describe("applyCreatorOverride", () => {
 });
 
 describe("mergeDuplicateCreators", () => {
-  it("throws when merging a creator into itself", () => {
-    expect(() => mergeDuplicateCreators("a", "a")).toThrow(
+  it("throws when merging a creator into itself", async () => {
+    await expect(mergeDuplicateCreators("a", "a")).rejects.toThrow(
       "Cannot merge a creator into itself",
     );
   });
 
-  it("throws when the source doesn't exist", () => {
-    getCreator.mockReturnValueOnce(undefined); // source lookup
-    expect(() => mergeDuplicateCreators("a", "b")).toThrow("Creator not found");
+  it("throws when the source doesn't exist", async () => {
+    getCreator.mockResolvedValueOnce(undefined); // source lookup
+    await expect(mergeDuplicateCreators("a", "b")).rejects.toThrow(
+      "Creator not found",
+    );
   });
 
-  it("throws when the target doesn't exist", () => {
-    getCreator.mockReturnValueOnce(makeCreator({ id: "a" })); // source lookup
-    getCreator.mockReturnValueOnce(undefined); // target lookup
-    expect(() => mergeDuplicateCreators("a", "b")).toThrow(
+  it("throws when the target doesn't exist", async () => {
+    getCreator.mockResolvedValueOnce(makeCreator({ id: "a" })); // source lookup
+    getCreator.mockResolvedValueOnce(undefined); // target lookup
+    await expect(mergeDuplicateCreators("a", "b")).rejects.toThrow(
       "Target creator not found",
     );
   });
 
-  it("marks the source as a duplicate and adopts the target's resolved identity", () => {
-    getCreator.mockReturnValueOnce(
+  it("marks the source as a duplicate and adopts the target's resolved identity", async () => {
+    getCreator.mockResolvedValueOnce(
       makeCreator({ id: "source-1", resolved_first_name: "Jane" }),
     );
-    getCreator.mockReturnValueOnce(
+    getCreator.mockResolvedValueOnce(
       makeCreator({
         id: "target-1",
         resolved_first_name: "Target",
@@ -191,7 +193,7 @@ describe("mergeDuplicateCreators", () => {
       }),
     );
 
-    mergeDuplicateCreators("source-1", "target-1");
+    await mergeDuplicateCreators("source-1", "target-1");
 
     expect(markDuplicateOf).toHaveBeenCalledWith("source-1", "target-1");
     expect(applyResolvedIdentity).toHaveBeenCalledWith(
@@ -204,8 +206,8 @@ describe("mergeDuplicateCreators", () => {
     expect(setReviewStatus).toHaveBeenCalledWith("source-1", "approved");
   });
 
-  it("records a pre-merge snapshot of the source so the merge can be undone", () => {
-    getCreator.mockReturnValueOnce(
+  it("records a pre-merge snapshot of the source so the merge can be undone", async () => {
+    getCreator.mockResolvedValueOnce(
       makeCreator({
         id: "source-1",
         resolved_first_name: "Jane",
@@ -217,9 +219,9 @@ describe("mergeDuplicateCreators", () => {
         review_status: "pending",
       }),
     );
-    getCreator.mockReturnValueOnce(makeCreator({ id: "target-1" }));
+    getCreator.mockResolvedValueOnce(makeCreator({ id: "target-1" }));
 
-    mergeDuplicateCreators("source-1", "target-1");
+    await mergeDuplicateCreators("source-1", "target-1");
 
     const { addProcessingLog } = processingLogsRepo;
     expect(addProcessingLog).toHaveBeenCalledWith(
@@ -244,31 +246,33 @@ describe("mergeDuplicateCreators", () => {
 });
 
 describe("unmergeCreator", () => {
-  it("throws when the creator doesn't exist", () => {
-    getCreator.mockReturnValueOnce(undefined);
-    expect(() => unmergeCreator("missing")).toThrow("Creator not found");
+  it("throws when the creator doesn't exist", async () => {
+    getCreator.mockResolvedValueOnce(undefined);
+    await expect(unmergeCreator("missing")).rejects.toThrow("Creator not found");
   });
 
-  it("throws when the creator isn't marked as a duplicate", () => {
-    getCreator.mockReturnValueOnce(makeCreator({ duplicate_of_creator_id: null }));
-    expect(() => unmergeCreator("creator-1")).toThrow(
+  it("throws when the creator isn't marked as a duplicate", async () => {
+    getCreator.mockResolvedValueOnce(makeCreator({ duplicate_of_creator_id: null }));
+    await expect(unmergeCreator("creator-1")).rejects.toThrow(
       "not marked as a duplicate",
     );
   });
 
-  it("throws when no merge snapshot can be found", () => {
-    getCreator.mockReturnValueOnce(
+  it("throws when no merge snapshot can be found", async () => {
+    getCreator.mockResolvedValueOnce(
       makeCreator({ duplicate_of_creator_id: "target-1" }),
     );
-    listProcessingLogsForCreator.mockReturnValueOnce([]);
-    expect(() => unmergeCreator("creator-1")).toThrow("No merge snapshot found");
+    listProcessingLogsForCreator.mockResolvedValueOnce([]);
+    await expect(unmergeCreator("creator-1")).rejects.toThrow(
+      "No merge snapshot found",
+    );
   });
 
-  it("restores the pre-merge snapshot and clears the duplicate link", () => {
-    getCreator.mockReturnValue(
+  it("restores the pre-merge snapshot and clears the duplicate link", async () => {
+    getCreator.mockResolvedValue(
       makeCreator({ id: "creator-1", duplicate_of_creator_id: "target-1" }),
     );
-    listProcessingLogsForCreator.mockReturnValueOnce([
+    listProcessingLogsForCreator.mockResolvedValueOnce([
       {
         id: "log-1",
         creator_id: "creator-1",
@@ -291,7 +295,7 @@ describe("unmergeCreator", () => {
       },
     ]);
 
-    unmergeCreator("creator-1");
+    await unmergeCreator("creator-1");
 
     expect(clearDuplicateOf).toHaveBeenCalledWith("creator-1");
     expect(applyResolvedIdentity).toHaveBeenCalledWith(
@@ -307,11 +311,11 @@ describe("unmergeCreator", () => {
     expect(setReviewStatus).toHaveBeenCalledWith("creator-1", "pending");
   });
 
-  it("uses the most recent merge snapshot when there are multiple merge log entries", () => {
-    getCreator.mockReturnValue(
+  it("uses the most recent merge snapshot when there are multiple merge log entries", async () => {
+    getCreator.mockResolvedValue(
       makeCreator({ id: "creator-1", duplicate_of_creator_id: "target-2" }),
     );
-    listProcessingLogsForCreator.mockReturnValueOnce([
+    listProcessingLogsForCreator.mockResolvedValueOnce([
       {
         id: "log-old",
         creator_id: "creator-1",
@@ -338,7 +342,7 @@ describe("unmergeCreator", () => {
       },
     ]);
 
-    unmergeCreator("creator-1");
+    await unmergeCreator("creator-1");
 
     expect(applyResolvedIdentity).toHaveBeenCalledWith(
       "creator-1",

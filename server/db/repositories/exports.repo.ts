@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { db } from "../client";
+import type { InArgs } from "@libsql/client";
+import { libsqlClient } from "../libsql-client";
 import type { ExportType } from "../../../shared/types";
 
 export interface ExportHistoryRow {
@@ -12,13 +13,13 @@ export interface ExportHistoryRow {
   created_at: number;
 }
 
-export function recordExport(input: {
+export async function recordExport(input: {
   importId?: string;
   exportType: ExportType;
   filterSnapshot?: Record<string, unknown>;
   fileName: string;
   rowCount: number;
-}): ExportHistoryRow {
+}): Promise<ExportHistoryRow> {
   const row: ExportHistoryRow = {
     id: randomUUID(),
     import_id: input.importId ?? null,
@@ -30,17 +31,18 @@ export function recordExport(input: {
     row_count: input.rowCount,
     created_at: Date.now(),
   };
-  db.prepare(
-    `INSERT INTO export_history (id, import_id, export_type, filter_snapshot, file_name, row_count, created_at)
-     VALUES (@id, @import_id, @export_type, @filter_snapshot, @file_name, @row_count, @created_at)`,
-  ).run(row);
+  await libsqlClient.execute({
+    sql: `INSERT INTO export_history (id, import_id, export_type, filter_snapshot, file_name, row_count, created_at)
+     VALUES (:id, :import_id, :export_type, :filter_snapshot, :file_name, :row_count, :created_at)`,
+    args: row as unknown as InArgs,
+  });
   return row;
 }
 
-export function listExports(limit = 50): ExportHistoryRow[] {
-  return db
-    .prepare<[number], ExportHistoryRow>(
-      "SELECT * FROM export_history ORDER BY created_at DESC LIMIT ?",
-    )
-    .all(limit);
+export async function listExports(limit = 50): Promise<ExportHistoryRow[]> {
+  const result = await libsqlClient.execute({
+    sql: "SELECT * FROM export_history ORDER BY created_at DESC LIMIT ?",
+    args: [limit],
+  });
+  return result.rows as unknown as ExportHistoryRow[];
 }

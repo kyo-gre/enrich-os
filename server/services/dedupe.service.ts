@@ -27,8 +27,10 @@ export interface DuplicateCandidateGroup extends DuplicateGroup {
  * already been resolved by a prior merge and re-flagging them would just
  * be noise.
  */
-export function findDuplicateCandidates(importId: string): DuplicateCandidateGroup[] {
-  const creators = listCreatorsByImport(importId).filter(
+export async function findDuplicateCandidates(
+  importId: string,
+): Promise<DuplicateCandidateGroup[]> {
+  const creators = (await listCreatorsByImport(importId)).filter(
     (creator) => !creator.duplicate_of_creator_id,
   );
 

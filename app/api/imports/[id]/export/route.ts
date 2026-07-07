@@ -15,7 +15,7 @@ export async function GET(
     );
   }
 
-  const { csv, fileName } = exportCreators(id, type);
+  const { csv, fileName } = await exportCreators(id, type);
 
   return new NextResponse(csv, {
     headers: {

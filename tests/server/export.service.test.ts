@@ -55,17 +55,17 @@ beforeEach(() => {
 });
 
 describe("exportCreators", () => {
-  it("produces a quick export with only firstName/email/socialHandle columns", () => {
-    listCreatorsByImport.mockReturnValueOnce([makeCreator()]);
-    const result = exportCreators("import-1", "quick");
+  it("produces a quick export with only firstName/email/socialHandle columns", async () => {
+    listCreatorsByImport.mockResolvedValueOnce([makeCreator()]);
+    const result = await exportCreators("import-1", "quick");
     expect(result.csv).toContain("firstName,email,socialHandle");
     expect(result.csv).toContain("Jane,jane@example.com,janedoe");
     expect(result.rowCount).toBe(1);
   });
 
-  it("produces a full export including confidence, status, review state, and pipeline version", () => {
-    listCreatorsByImport.mockReturnValueOnce([makeCreator()]);
-    const result = exportCreators("import-1", "full");
+  it("produces a full export including confidence, status, review state, and pipeline version", async () => {
+    listCreatorsByImport.mockResolvedValueOnce([makeCreator()]);
+    const result = await exportCreators("import-1", "full");
     expect(result.csv).toContain("confidenceScore");
     expect(result.csv).toContain("processingStatus");
     expect(result.csv).toContain("reviewStatus");
@@ -74,41 +74,41 @@ describe("exportCreators", () => {
     expect(result.csv).toContain("enriched");
   });
 
-  it("excludes ignored records", () => {
-    listCreatorsByImport.mockReturnValueOnce([
+  it("excludes ignored records", async () => {
+    listCreatorsByImport.mockResolvedValueOnce([
       makeCreator({ id: "kept", review_status: "pending" }),
       makeCreator({ id: "dropped", review_status: "ignored" }),
     ]);
-    const result = exportCreators("import-1", "quick");
+    const result = await exportCreators("import-1", "quick");
     expect(result.rowCount).toBe(1);
   });
 
-  it("excludes creators that are duplicates of another record", () => {
-    listCreatorsByImport.mockReturnValueOnce([
+  it("excludes creators that are duplicates of another record", async () => {
+    listCreatorsByImport.mockResolvedValueOnce([
       makeCreator({ id: "kept" }),
       makeCreator({ id: "dropped", duplicate_of_creator_id: "kept" }),
     ]);
-    const result = exportCreators("import-1", "quick");
+    const result = await exportCreators("import-1", "quick");
     expect(result.rowCount).toBe(1);
   });
 
-  it("does NOT exclude a record merely flagged as a duplicate candidate — only confirmed merges", () => {
+  it("does NOT exclude a record merely flagged as a duplicate candidate — only confirmed merges", async () => {
     // duplicate_of_creator_id is only ever set by mergeDuplicateCreators
     // (a human confirming a merge). findDuplicateCandidates never writes
     // it, so a record that's a duplicate *candidate* but hasn't been
     // merged yet still has duplicate_of_creator_id === null and must
     // still export normally.
-    listCreatorsByImport.mockReturnValueOnce([
+    listCreatorsByImport.mockResolvedValueOnce([
       makeCreator({ id: "a", duplicate_of_creator_id: null }),
       makeCreator({ id: "b", duplicate_of_creator_id: null }),
     ]);
-    const result = exportCreators("import-1", "quick");
+    const result = await exportCreators("import-1", "quick");
     expect(result.rowCount).toBe(2);
   });
 
-  it("records the export in export_history", () => {
-    listCreatorsByImport.mockReturnValueOnce([makeCreator()]);
-    exportCreators("import-1", "full");
+  it("records the export in export_history", async () => {
+    listCreatorsByImport.mockResolvedValueOnce([makeCreator()]);
+    await exportCreators("import-1", "full");
     expect(recordExport).toHaveBeenCalledWith(
       expect.objectContaining({ importId: "import-1", exportType: "full", rowCount: 1 }),
     );

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { db } from "../client";
+import type { InArgs } from "@libsql/client";
+import { libsqlClient } from "../libsql-client";
 
 export interface ProcessingLogRow {
   id: string;
@@ -11,33 +12,34 @@ export interface ProcessingLogRow {
   created_at: number;
 }
 
-export function addProcessingLog(input: {
+export async function addProcessingLog(input: {
   creatorId: string;
   jobId?: string;
   step: string;
   status: ProcessingLogRow["status"];
   detail?: Record<string, unknown>;
-}): void {
-  db.prepare(
-    `INSERT INTO processing_logs (id, creator_id, job_id, step, status, detail, created_at)
+}): Promise<void> {
+  await libsqlClient.execute({
+    sql: `INSERT INTO processing_logs (id, creator_id, job_id, step, status, detail, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    randomUUID(),
-    input.creatorId,
-    input.jobId ?? null,
-    input.step,
-    input.status,
-    input.detail ? JSON.stringify(input.detail) : null,
-    Date.now(),
-  );
+    args: [
+      randomUUID(),
+      input.creatorId,
+      input.jobId ?? null,
+      input.step,
+      input.status,
+      input.detail ? JSON.stringify(input.detail) : null,
+      Date.now(),
+    ] as InArgs,
+  });
 }
 
-export function listProcessingLogsForCreator(
+export async function listProcessingLogsForCreator(
   creatorId: string,
-): ProcessingLogRow[] {
-  return db
-    .prepare<[string], ProcessingLogRow>(
-      "SELECT * FROM processing_logs WHERE creator_id = ? ORDER BY created_at ASC",
-    )
-    .all(creatorId);
+): Promise<ProcessingLogRow[]> {
+  const result = await libsqlClient.execute({
+    sql: "SELECT * FROM processing_logs WHERE creator_id = ? ORDER BY created_at ASC",
+    args: [creatorId],
+  });
+  return result.rows as unknown as ProcessingLogRow[];
 }

@@ -34,7 +34,7 @@ export async function POST(
   }
 
   try {
-    const creator = applyCreatorOverride(
+    const creator = await applyCreatorOverride(
       id,
       field,
       value,

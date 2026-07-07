@@ -17,7 +17,7 @@ export async function POST(
   }
 
   try {
-    mergeDuplicateCreators(id, targetCreatorId);
+    await mergeDuplicateCreators(id, targetCreatorId);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to merge creators" },

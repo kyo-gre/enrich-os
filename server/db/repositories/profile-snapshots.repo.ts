@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { db } from "../client";
+import type { InArgs } from "@libsql/client";
+import { libsqlClient } from "../libsql-client";
 
 export interface ProfileSnapshotRow {
   id: string;
@@ -10,12 +11,12 @@ export interface ProfileSnapshotRow {
   fetched_at: number;
 }
 
-export function saveProfileSnapshot(input: {
+export async function saveProfileSnapshot(input: {
   creatorId: string;
   platform: string;
   fetchedVia: "static" | "browser";
   rawSnapshot: Record<string, unknown>;
-}): ProfileSnapshotRow {
+}): Promise<ProfileSnapshotRow> {
   const row: ProfileSnapshotRow = {
     id: randomUUID(),
     creator_id: input.creatorId,
@@ -24,19 +25,20 @@ export function saveProfileSnapshot(input: {
     raw_snapshot: JSON.stringify(input.rawSnapshot),
     fetched_at: Date.now(),
   };
-  db.prepare(
-    `INSERT INTO profile_snapshots (id, creator_id, platform, fetched_via, raw_snapshot, fetched_at)
-     VALUES (@id, @creator_id, @platform, @fetched_via, @raw_snapshot, @fetched_at)`,
-  ).run(row);
+  await libsqlClient.execute({
+    sql: `INSERT INTO profile_snapshots (id, creator_id, platform, fetched_via, raw_snapshot, fetched_at)
+     VALUES (:id, :creator_id, :platform, :fetched_via, :raw_snapshot, :fetched_at)`,
+    args: row as unknown as InArgs,
+  });
   return row;
 }
 
-export function listProfileSnapshotsForCreator(
+export async function listProfileSnapshotsForCreator(
   creatorId: string,
-): ProfileSnapshotRow[] {
-  return db
-    .prepare<[string], ProfileSnapshotRow>(
-      "SELECT * FROM profile_snapshots WHERE creator_id = ? ORDER BY fetched_at ASC",
-    )
-    .all(creatorId);
+): Promise<ProfileSnapshotRow[]> {
+  const result = await libsqlClient.execute({
+    sql: "SELECT * FROM profile_snapshots WHERE creator_id = ? ORDER BY fetched_at ASC",
+    args: [creatorId],
+  });
+  return result.rows as unknown as ProfileSnapshotRow[];
 }

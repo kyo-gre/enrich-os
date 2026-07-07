@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { db } from "../client";
+import type { InArgs } from "@libsql/client";
+import { libsqlClient } from "../libsql-client";
 
 export interface ImportHistoryRow {
   id: string;
@@ -13,10 +14,10 @@ export interface ImportHistoryRow {
   completed_at: number | null;
 }
 
-export function createImport(input: {
+export async function createImport(input: {
   fileName: string;
   fileType: "csv" | "xlsx";
-}): ImportHistoryRow {
+}): Promise<ImportHistoryRow> {
   const row: ImportHistoryRow = {
     id: randomUUID(),
     file_name: input.fileName,
@@ -28,47 +29,52 @@ export function createImport(input: {
     created_at: Date.now(),
     completed_at: null,
   };
-  db.prepare(
-    `INSERT INTO import_history (id, file_name, file_type, row_count, column_mapping, status, job_id, created_at, completed_at)
-     VALUES (@id, @file_name, @file_type, @row_count, @column_mapping, @status, @job_id, @created_at, @completed_at)`,
-  ).run(row);
+  await libsqlClient.execute({
+    sql: `INSERT INTO import_history (id, file_name, file_type, row_count, column_mapping, status, job_id, created_at, completed_at)
+     VALUES (:id, :file_name, :file_type, :row_count, :column_mapping, :status, :job_id, :created_at, :completed_at)`,
+    args: row as unknown as InArgs,
+  });
   return row;
 }
 
-export function getImport(id: string): ImportHistoryRow | undefined {
-  return db
-    .prepare<[string], ImportHistoryRow>(
-      "SELECT * FROM import_history WHERE id = ?",
-    )
-    .get(id);
+export async function getImport(
+  id: string,
+): Promise<ImportHistoryRow | undefined> {
+  const result = await libsqlClient.execute({
+    sql: "SELECT * FROM import_history WHERE id = ?",
+    args: [id],
+  });
+  return result.rows[0] as unknown as ImportHistoryRow | undefined;
 }
 
-export function listImports(limit = 50): ImportHistoryRow[] {
-  return db
-    .prepare<[number], ImportHistoryRow>(
-      "SELECT * FROM import_history ORDER BY created_at DESC LIMIT ?",
-    )
-    .all(limit);
+export async function listImports(limit = 50): Promise<ImportHistoryRow[]> {
+  const result = await libsqlClient.execute({
+    sql: "SELECT * FROM import_history ORDER BY created_at DESC LIMIT ?",
+    args: [limit],
+  });
+  return result.rows as unknown as ImportHistoryRow[];
 }
 
-export function updateImportMapping(
+export async function updateImportMapping(
   id: string,
   columnMapping: Record<string, string>,
   rowCount: number,
-): void {
-  db.prepare(
-    `UPDATE import_history SET column_mapping = ?, row_count = ?, status = 'mapped' WHERE id = ?`,
-  ).run(JSON.stringify(columnMapping), rowCount, id);
+): Promise<void> {
+  await libsqlClient.execute({
+    sql: `UPDATE import_history SET column_mapping = ?, row_count = ?, status = 'mapped' WHERE id = ?`,
+    args: [JSON.stringify(columnMapping), rowCount, id],
+  });
 }
 
-export function updateImportStatus(
+export async function updateImportStatus(
   id: string,
   status: ImportHistoryRow["status"],
   jobId?: string,
-): void {
-  db.prepare(
-    `UPDATE import_history
+): Promise<void> {
+  await libsqlClient.execute({
+    sql: `UPDATE import_history
      SET status = ?, job_id = COALESCE(?, job_id), completed_at = CASE WHEN ? IN ('completed','failed') THEN ? ELSE completed_at END
      WHERE id = ?`,
-  ).run(status, jobId ?? null, status, Date.now(), id);
+    args: [status, jobId ?? null, status, Date.now(), id],
+  });
 }

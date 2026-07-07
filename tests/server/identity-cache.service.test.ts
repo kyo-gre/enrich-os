@@ -23,15 +23,15 @@ beforeEach(() => {
 });
 
 describe("lookupCachedIdentity", () => {
-  it("checks every available key, not just the first that hits", () => {
-    findIdentityByKey.mockReturnValueOnce({ id: "cached-1" } as never); // email
+  it("checks every available key, not just the first that hits", async () => {
+    findIdentityByKey.mockResolvedValueOnce({ id: "cached-1" } as never); // email
 
     const normalized: NormalizedCreator = {
       email: "Mia.Shpirer@Gmail.com",
       username: "mia",
       profileUrl: "https://instagram.com/mia",
     };
-    const result = lookupCachedIdentity(normalized);
+    const result = await lookupCachedIdentity(normalized);
 
     expect(result).toEqual({ status: "hit", identity: { id: "cached-1" } });
     // All three keys still get checked, even though email already hit —
@@ -39,32 +39,34 @@ describe("lookupCachedIdentity", () => {
     expect(findIdentityByKey).toHaveBeenCalledTimes(3);
   });
 
-  it("returns a miss when no key matches anything", () => {
-    findIdentityByKey.mockReturnValue(undefined);
+  it("returns a miss when no key matches anything", async () => {
+    findIdentityByKey.mockResolvedValue(undefined);
     const normalized: NormalizedCreator = { email: "a@b.com", username: "mia" };
-    expect(lookupCachedIdentity(normalized)).toEqual({ status: "miss" });
+    expect(await lookupCachedIdentity(normalized)).toEqual({ status: "miss" });
   });
 
-  it("returns miss when there is nothing to look up", () => {
-    const result = lookupCachedIdentity({});
+  it("returns miss when there is nothing to look up", async () => {
+    const result = await lookupCachedIdentity({});
     expect(result).toEqual({ status: "miss" });
     expect(findIdentityByKey).not.toHaveBeenCalled();
   });
 
-  it("flags a conflict when different keys match different cached identities", () => {
+  it("flags a conflict when different keys match different cached identities", async () => {
     findIdentityByKey.mockImplementation((keyType) =>
-      (keyType === "email"
-        ? { id: "identity-a" }
-        : keyType === "username"
-          ? { id: "identity-b" }
-          : undefined) as never,
+      Promise.resolve(
+        (keyType === "email"
+          ? { id: "identity-a" }
+          : keyType === "username"
+            ? { id: "identity-b" }
+            : undefined) as never,
+      ),
     );
 
     const normalized: NormalizedCreator = {
       email: "a@b.com",
       username: "mia",
     };
-    const result = lookupCachedIdentity(normalized);
+    const result = await lookupCachedIdentity(normalized);
 
     expect(result.status).toBe("conflict");
     if (result.status === "conflict") {
@@ -75,10 +77,10 @@ describe("lookupCachedIdentity", () => {
     }
   });
 
-  it("does not report a conflict when two keys agree on the same identity", () => {
-    findIdentityByKey.mockReturnValue({ id: "same-identity" } as never);
+  it("does not report a conflict when two keys agree on the same identity", async () => {
+    findIdentityByKey.mockResolvedValue({ id: "same-identity" } as never);
     const normalized: NormalizedCreator = { email: "a@b.com", username: "mia" };
-    expect(lookupCachedIdentity(normalized)).toEqual({
+    expect(await lookupCachedIdentity(normalized)).toEqual({
       status: "hit",
       identity: { id: "same-identity" },
     });
@@ -96,28 +98,28 @@ describe("upsertIdentityCache", () => {
     needsReview: false,
   };
 
-  it("does not cache results that need review or failed", () => {
-    upsertIdentityCache(
+  it("does not cache results that need review or failed", async () => {
+    await upsertIdentityCache(
       { ...baseResolved, processingStatus: "needs_review", needsReview: true },
       {},
     );
-    upsertIdentityCache({ ...baseResolved, processingStatus: "failed" }, {});
+    await upsertIdentityCache({ ...baseResolved, processingStatus: "failed" }, {});
     expect(createIdentityCache).not.toHaveBeenCalled();
     expect(findIdentityByKey).not.toHaveBeenCalled();
   });
 
-  it("does not cache a result with no identity keys at all", () => {
-    const result = upsertIdentityCache(baseResolved, {});
+  it("does not cache a result with no identity keys at all", async () => {
+    const result = await upsertIdentityCache(baseResolved, {});
     expect(result).toBeUndefined();
     expect(createIdentityCache).not.toHaveBeenCalled();
   });
 
-  it("creates a new cache entry when no existing key matches", () => {
-    findIdentityByKey.mockReturnValue(undefined);
-    createIdentityCache.mockReturnValueOnce({ id: "new-1" } as never);
+  it("creates a new cache entry when no existing key matches", async () => {
+    findIdentityByKey.mockResolvedValue(undefined);
+    createIdentityCache.mockResolvedValueOnce({ id: "new-1" } as never);
 
     const resolved: ResolvedIdentity = { ...baseResolved, email: "a@b.com" };
-    const result = upsertIdentityCache(resolved, {});
+    const result = await upsertIdentityCache(resolved, {});
 
     expect(createIdentityCache).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -132,15 +134,15 @@ describe("upsertIdentityCache", () => {
     expect(result).toEqual({ id: "new-1" });
   });
 
-  it("reuses an existing cache entry and adds missing keys instead of overwriting it", () => {
-    findIdentityByKey.mockReturnValue({ id: "existing-1" } as never);
+  it("reuses an existing cache entry and adds missing keys instead of overwriting it", async () => {
+    findIdentityByKey.mockResolvedValue({ id: "existing-1" } as never);
 
     const resolved: ResolvedIdentity = {
       ...baseResolved,
       email: "a@b.com",
       socialHandle: "mia",
     };
-    const result = upsertIdentityCache(resolved, {});
+    const result = await upsertIdentityCache(resolved, {});
 
     expect(createIdentityCache).not.toHaveBeenCalled();
     expect(result).toEqual({ id: "existing-1" });
@@ -156,11 +158,11 @@ describe("upsertIdentityCache", () => {
     );
   });
 
-  it("falls back to normalized input fields when resolved doesn't carry them", () => {
-    findIdentityByKey.mockReturnValue(undefined);
-    createIdentityCache.mockReturnValueOnce({ id: "new-2" } as never);
+  it("falls back to normalized input fields when resolved doesn't carry them", async () => {
+    findIdentityByKey.mockResolvedValue(undefined);
+    createIdentityCache.mockResolvedValueOnce({ id: "new-2" } as never);
 
-    upsertIdentityCache(baseResolved, {
+    await upsertIdentityCache(baseResolved, {
       email: "fallback@b.com",
       username: "fallbackuser",
       profileUrl: "https://tiktok.com/@fallbackuser",
@@ -175,13 +177,15 @@ describe("upsertIdentityCache", () => {
     );
   });
 
-  it("skips the write when the record's keys point to more than one existing identity", () => {
+  it("skips the write when the record's keys point to more than one existing identity", async () => {
     findIdentityByKey.mockImplementation((keyType) =>
-      (keyType === "email"
-        ? { id: "identity-a" }
-        : keyType === "username"
-          ? { id: "identity-b" }
-          : undefined) as never,
+      Promise.resolve(
+        (keyType === "email"
+          ? { id: "identity-a" }
+          : keyType === "username"
+            ? { id: "identity-b" }
+            : undefined) as never,
+      ),
     );
 
     const resolved: ResolvedIdentity = {
@@ -189,7 +193,7 @@ describe("upsertIdentityCache", () => {
       email: "a@b.com",
       socialHandle: "mia",
     };
-    const result = upsertIdentityCache(resolved, {});
+    const result = await upsertIdentityCache(resolved, {});
 
     expect(result).toBeUndefined();
     expect(createIdentityCache).not.toHaveBeenCalled();

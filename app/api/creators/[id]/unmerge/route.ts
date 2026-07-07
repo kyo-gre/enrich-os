@@ -8,7 +8,7 @@ export async function POST(
   const { id } = await params;
 
   try {
-    const creator = unmergeCreator(id);
+    const creator = await unmergeCreator(id);
     return NextResponse.json({ creator });
   } catch (error) {
     return NextResponse.json(

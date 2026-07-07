@@ -16,10 +16,10 @@ export type CacheLookupResult =
   | { status: "conflict"; identities: IdentityCacheRow[] };
 
 /** Looks up every key and returns the distinct identity_cache rows matched, deduped by id. */
-function findAllMatches(keys: IdentityKey[]): IdentityCacheRow[] {
+async function findAllMatches(keys: IdentityKey[]): Promise<IdentityCacheRow[]> {
   const byId = new Map<string, IdentityCacheRow>();
   for (const key of keys) {
-    const hit = findIdentityByKey(key.keyType, key.keyValue);
+    const hit = await findIdentityByKey(key.keyType, key.keyValue);
     if (hit) byId.set(hit.id, hit);
   }
   return [...byId.values()];
@@ -40,9 +40,9 @@ function findAllMatches(keys: IdentityKey[]): IdentityCacheRow[] {
  * rather than "pick the strongest key" or "merge" is the conservative
  * choice consistent with never overwriting/merging evidence automatically.
  */
-export function lookupCachedIdentity(
+export async function lookupCachedIdentity(
   normalized: NormalizedCreator,
-): CacheLookupResult {
+): Promise<CacheLookupResult> {
   const keys = buildIdentityKeys({
     email: normalized.email,
     username: normalized.username,
@@ -50,7 +50,7 @@ export function lookupCachedIdentity(
   });
   if (keys.length === 0) return { status: "miss" };
 
-  const matches = findAllMatches(keys);
+  const matches = await findAllMatches(keys);
   if (matches.length === 0) return { status: "miss" };
   if (matches.length === 1) return { status: "hit", identity: matches[0] };
   return { status: "conflict", identities: matches };
@@ -74,10 +74,10 @@ export function lookupCachedIdentity(
  * either pick a side or blur two identities together, so the write is
  * skipped (returns undefined) rather than guessing.
  */
-export function upsertIdentityCache(
+export async function upsertIdentityCache(
   resolved: ResolvedIdentity,
   normalized: NormalizedCreator,
-): IdentityCacheRow | undefined {
+): Promise<IdentityCacheRow | undefined> {
   if (resolved.processingStatus !== "enriched") return undefined;
 
   const keys = buildIdentityKeys({
@@ -87,12 +87,12 @@ export function upsertIdentityCache(
   });
   if (keys.length === 0) return undefined;
 
-  const matches = findAllMatches(keys);
+  const matches = await findAllMatches(keys);
   if (matches.length > 1) return undefined;
   if (matches.length === 1) {
     const existing = matches[0];
     for (const key of keys) {
-      addIdentityCacheKey(existing.id, key.keyType, key.keyValue);
+      await addIdentityCacheKey(existing.id, key.keyType, key.keyValue);
     }
     return existing;
   }
