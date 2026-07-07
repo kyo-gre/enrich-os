@@ -4,6 +4,7 @@ import { normalizeCreator } from "../../core/normalization/normalize";
 import { extractFromFullName } from "../../core/extraction/full-name-parser";
 import { extractFromEmail } from "../../core/extraction/email-name-parser";
 import { scoreCandidates } from "../../core/confidence/scorer";
+import { scrapeProfile } from "../../core/profiles/adapters";
 import type { NameCandidate } from "../../shared/types";
 import {
   applyResolvedIdentity,
@@ -11,10 +12,11 @@ import {
   type CreatorRow,
 } from "../db/repositories/creators.repo";
 import { addProcessingLog } from "../db/repositories/processing-logs.repo";
+import { saveProfileSnapshot } from "../db/repositories/profile-snapshots.repo";
 
 const PIPELINE_VERSION = pipelineVersionConfig.version;
 
-function enrichOne(creator: CreatorRow): void {
+async function enrichOne(creator: CreatorRow): Promise<void> {
   const normalized = normalizeCreator({
     rawFullName: creator.raw_full_name ?? undefined,
     rawUsername: creator.raw_username ?? undefined,
@@ -50,6 +52,43 @@ function enrichOne(creator: CreatorRow): void {
   });
   if (emailCandidate) candidates.push(emailCandidate);
 
+  // Profile scraping never throws (see scrapeProfile), but a defensive
+  // try/catch here guarantees a failed/blocked adapter can never abort the
+  // record: the scrape is treated purely as additional candidate evidence.
+  try {
+    const scrapeOutcome = await scrapeProfile(normalized.profileUrl);
+    if (scrapeOutcome) {
+      addProcessingLog({
+        creatorId: creator.id,
+        step: `scraped_profile_${scrapeOutcome.platform}`,
+        status: scrapeOutcome.error
+          ? "failed"
+          : scrapeOutcome.candidate
+            ? "success"
+            : "skipped",
+        detail: scrapeOutcome.error
+          ? { error: scrapeOutcome.error }
+          : (scrapeOutcome.candidate ?? undefined),
+      });
+      if (scrapeOutcome.candidate) candidates.push(scrapeOutcome.candidate);
+      if (scrapeOutcome.rawSnapshot && scrapeOutcome.fetchedVia) {
+        saveProfileSnapshot({
+          creatorId: creator.id,
+          platform: scrapeOutcome.platform,
+          fetchedVia: scrapeOutcome.fetchedVia,
+          rawSnapshot: scrapeOutcome.rawSnapshot,
+        });
+      }
+    }
+  } catch (error) {
+    addProcessingLog({
+      creatorId: creator.id,
+      step: "scraped_profile",
+      status: "failed",
+      detail: { error: error instanceof Error ? error.message : String(error) },
+    });
+  }
+
   const resolved = scoreCandidates(candidates, confidenceWeights, PIPELINE_VERSION);
   addProcessingLog({
     creatorId: creator.id,
@@ -81,10 +120,23 @@ function enrichOne(creator: CreatorRow): void {
   });
 }
 
-export function runEnrichmentForImport(importId: string): { processed: number } {
+export async function runEnrichmentForImport(
+  importId: string,
+): Promise<{ processed: number; failed: number }> {
   const creators = listCreatorsByImport(importId);
+  let failed = 0;
   for (const creator of creators) {
-    enrichOne(creator);
+    try {
+      await enrichOne(creator);
+    } catch (error) {
+      failed += 1;
+      addProcessingLog({
+        creatorId: creator.id,
+        step: "enrich_one",
+        status: "failed",
+        detail: { error: error instanceof Error ? error.message : String(error) },
+      });
+    }
   }
-  return { processed: creators.length };
+  return { processed: creators.length, failed };
 }
