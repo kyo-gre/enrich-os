@@ -6,6 +6,6 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const result = runEnrichmentForImport(id);
+  const result = await runEnrichmentForImport(id);
   return NextResponse.json(result);
 }

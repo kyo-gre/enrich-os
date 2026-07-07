@@ -13,6 +13,10 @@ import {
 } from "../db/repositories/creators.repo";
 import { addProcessingLog } from "../db/repositories/processing-logs.repo";
 import { saveProfileSnapshot } from "../db/repositories/profile-snapshots.repo";
+import {
+  lookupCachedIdentity,
+  upsertIdentityCache,
+} from "./identity-cache.service";
 
 const PIPELINE_VERSION = pipelineVersionConfig.version;
 
@@ -31,6 +35,64 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
     status: "success",
     detail: normalized,
   });
+
+  // A cache hit means this identity (by email/profile URL/username) was
+  // already confidently resolved before — reuse it directly rather than
+  // re-running extraction and re-scraping the same profile. A conflict
+  // (different keys pointing at different cached identities) is flagged
+  // rather than resolved automatically — see lookupCachedIdentity's policy.
+  const cacheLookup = lookupCachedIdentity(normalized);
+
+  if (cacheLookup.status === "hit") {
+    const cached = cacheLookup.identity;
+    addProcessingLog({
+      creatorId: creator.id,
+      step: "cache_lookup",
+      status: "success",
+      detail: { identityCacheId: cached.id },
+    });
+    applyResolvedIdentity(creator.id, {
+      resolvedFirstName: cached.first_name ?? undefined,
+      resolvedLastName: cached.last_name ?? undefined,
+      resolvedDisplayName: cached.display_name ?? undefined,
+      resolvedPlatform: cached.platform ?? undefined,
+      resolvedProfileUrl: cached.profile_url ?? undefined,
+      resolvedSocialHandle: cached.social_handle ?? undefined,
+      resolvedEmail: cached.email ?? undefined,
+      confidenceScore: cached.confidence_score ?? 100,
+      confidenceSource: cached.confidence_source ?? undefined,
+      processingStatus: "cache_hit",
+      pipelineVersion: PIPELINE_VERSION,
+      needsReview: false,
+      identityCacheId: cached.id,
+    });
+    addProcessingLog({
+      creatorId: creator.id,
+      step: "final_selection",
+      status: "success",
+      detail: { firstName: cached.first_name, lastName: cached.last_name },
+    });
+    return;
+  }
+
+  const cacheConflict = cacheLookup.status === "conflict" ? cacheLookup.identities : undefined;
+  if (cacheConflict) {
+    addProcessingLog({
+      creatorId: creator.id,
+      step: "cache_lookup",
+      status: "failed",
+      detail: {
+        reason: "conflicting_identity_cache_matches",
+        identityCacheIds: cacheConflict.map((identity) => identity.id),
+      },
+    });
+  } else {
+    addProcessingLog({
+      creatorId: creator.id,
+      step: "cache_lookup",
+      status: "skipped",
+    });
+  }
 
   const candidates: NameCandidate[] = [];
 
@@ -89,7 +151,13 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
     });
   }
 
-  const resolved = scoreCandidates(candidates, confidenceWeights, PIPELINE_VERSION);
+  let resolved = scoreCandidates(candidates, confidenceWeights, PIPELINE_VERSION);
+  if (cacheConflict && resolved.processingStatus !== "failed") {
+    // A conflicting cache match means this identity is ambiguous even
+    // though fresh extraction/scraping found something — surface it for
+    // human review rather than trusting the fresh result outright.
+    resolved = { ...resolved, processingStatus: "needs_review", needsReview: true };
+  }
   addProcessingLog({
     creatorId: creator.id,
     step: "confidence_calculated",
@@ -101,10 +169,26 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
     },
   });
 
+  // Skip writing to the cache when a conflict was flagged — doing so would
+  // either pick a side or blur two identities together (see
+  // upsertIdentityCache's docstring for the same guard on its own reads).
+  const cacheEntry = cacheConflict ? undefined : upsertIdentityCache(resolved, normalized);
+  addProcessingLog({
+    creatorId: creator.id,
+    step: "cache_write",
+    status: cacheEntry ? "success" : "skipped",
+    detail: cacheEntry
+      ? { identityCacheId: cacheEntry.id }
+      : cacheConflict
+        ? { reason: "conflicting_identity_cache_matches" }
+        : undefined,
+  });
+
   // platform/profileUrl/socialHandle/email come from the winning candidate
   // when it knows them (a profile scrape knows the first three, the email
   // extractor knows the last); otherwise fall back to the record's own
-  // normalized input so the resolved identity is never missing a field
+  // normalized input so the resolved identity — and the identity-cache keys
+  // (email/username/profile_url) built from it — are never missing a field
   // just because the winner was a different candidate source.
   applyResolvedIdentity(creator.id, {
     resolvedFirstName: resolved.firstName,
@@ -119,6 +203,7 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
     processingStatus: resolved.processingStatus,
     pipelineVersion: resolved.pipelineVersion,
     needsReview: resolved.needsReview,
+    identityCacheId: cacheEntry?.id,
   });
 
   addProcessingLog({
@@ -138,6 +223,9 @@ export async function runEnrichmentForImport(
     try {
       await enrichOne(creator);
     } catch (error) {
+      // A record-level failure (e.g. an unexpected error in normalization
+      // or scoring) must not abort the rest of the import — log it and
+      // move on to the next creator.
       failed += 1;
       addProcessingLog({
         creatorId: creator.id,
