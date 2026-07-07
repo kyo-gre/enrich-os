@@ -101,10 +101,19 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
     },
   });
 
+  // platform/profileUrl/socialHandle/email come from the winning candidate
+  // when it knows them (a profile scrape knows the first three, the email
+  // extractor knows the last); otherwise fall back to the record's own
+  // normalized input so the resolved identity is never missing a field
+  // just because the winner was a different candidate source.
   applyResolvedIdentity(creator.id, {
     resolvedFirstName: resolved.firstName,
     resolvedLastName: resolved.lastName,
     resolvedDisplayName: resolved.displayName,
+    resolvedPlatform: resolved.platform ?? normalized.platform,
+    resolvedProfileUrl: resolved.profileUrl ?? normalized.profileUrl,
+    resolvedSocialHandle: resolved.socialHandle ?? normalized.username,
+    resolvedEmail: resolved.email ?? normalized.email,
     confidenceScore: resolved.confidenceScore,
     confidenceSource: resolved.confidenceSource,
     processingStatus: resolved.processingStatus,
