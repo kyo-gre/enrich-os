@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { CanonicalField, ColumnMapping } from "../../shared/types";
+import { WorkflowStepper, type WorkflowStep } from "../../components/imports/workflow-stepper";
+import { ImportHistory } from "../../components/imports/import-history";
 
 const CANONICAL_FIELDS: Array<{ value: CanonicalField | ""; label: string }> = [
   { value: "", label: "— Ignore —" },
@@ -114,13 +116,35 @@ export default function ImportsPage() {
     }
   }
 
+  const steps: WorkflowStep[] = [
+    { key: "upload", label: "Upload", state: ingest ? "done" : "current" },
+    {
+      key: "mapping",
+      label: "Confirm Mapping",
+      state: normalizedPreview ? "done" : ingest ? "current" : "upcoming",
+    },
+    {
+      key: "enrich",
+      label: "Run Enrichment",
+      state: enrichedCount !== null ? "done" : normalizedPreview ? "current" : "upcoming",
+    },
+    {
+      key: "review",
+      label: "Review Results",
+      state: enrichedCount !== null ? "current" : "upcoming",
+    },
+    { key: "export", label: "Export", state: "upcoming" },
+  ];
+
   return (
     <div className="mx-auto max-w-4xl px-6 py-10 text-sm">
       <h1 className="text-lg font-medium mb-1">Import creators</h1>
-      <p className="text-neutral-500 mb-6">
-        Upload a CSV or XLSX file, confirm the detected column mapping, then
-        review the normalized preview.
+      <p className="text-neutral-500 mb-4">
+        Upload a CSV or XLSX file, confirm the detected column mapping, run
+        enrichment, then review and export the results.
       </p>
+
+      <WorkflowStepper steps={steps} />
 
       <input
         type="file"
@@ -138,9 +162,12 @@ export default function ImportsPage() {
 
       {ingest && (
         <section className="mb-8">
-          <h2 className="font-medium mb-2">
-            Column mapping — {ingest.rowCount} rows detected
+          <h2 className="font-medium mb-1">
+            Step 2: Confirm column mapping — {ingest.rowCount} rows detected
           </h2>
+          <p className="mb-2 text-xs text-neutral-500">
+            Review the detected mapping below, then click &quot;Confirm mapping&quot; to continue.
+          </p>
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="border-b border-neutral-300">
@@ -187,9 +214,15 @@ export default function ImportsPage() {
 
       {normalizedPreview && (
         <section>
-          <h2 className="font-medium mb-2">
-            Normalized preview — {rowCount} rows saved
+          <h2 className="font-medium mb-1">
+            Step 3: Normalized preview — {rowCount} rows saved
           </h2>
+          {enrichedCount === null && (
+            <p className="mb-2 text-xs text-neutral-500">
+              Mapping saved. Click &quot;Run enrichment&quot; below to process these rows —
+              nothing happens automatically until you do.
+            </p>
+          )}
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="border-b border-neutral-300">
@@ -213,38 +246,53 @@ export default function ImportsPage() {
             </tbody>
           </table>
 
-          {ingest && (
-            <div className="mt-4 flex items-center gap-3">
+          {ingest && enrichedCount === null && (
+            <div className="mt-4">
               <button
                 onClick={handleRunEnrichment}
                 disabled={busy}
                 className="rounded bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700 disabled:opacity-50"
               >
-                Run enrichment
+                {busy ? "Running enrichment…" : "Run enrichment"}
               </button>
-              {enrichedCount !== null && (
-                <>
-                  <span className="text-neutral-500">
-                    Enriched {enrichedCount} rows.
-                  </span>
-                  <Link
-                    href={`/review?importId=${ingest.importId}`}
-                    className="text-blue-600 hover:underline"
-                  >
-                    View in Review →
-                  </Link>
-                  <Link
-                    href={`/dashboard?importId=${ingest.importId}`}
-                    className="text-blue-600 hover:underline"
-                  >
-                    View Dashboard →
-                  </Link>
-                </>
-              )}
+            </div>
+          )}
+
+          {ingest && enrichedCount !== null && (
+            <div className="mt-4 rounded border border-green-300 bg-green-50 px-4 py-3">
+              <p className="mb-2 font-medium text-green-800">
+                Step 4: Enrichment complete — {enrichedCount} rows processed.
+              </p>
+              <p className="mb-3 text-xs text-neutral-600">
+                Next: review the results, then export when you&apos;re done.
+              </p>
+              <div className="flex items-center gap-3">
+                <Link
+                  href={`/review?importId=${ingest.importId}`}
+                  className="rounded bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700"
+                >
+                  Review results →
+                </Link>
+                <Link
+                  href={`/dashboard?importId=${ingest.importId}`}
+                  className="text-blue-600 hover:underline"
+                >
+                  Dashboard &amp; export →
+                </Link>
+              </div>
             </div>
           )}
         </section>
       )}
+
+      <section className="mt-10 border-t border-neutral-200 pt-6 dark:border-neutral-800">
+        <h2 className="font-medium mb-1">Import history</h2>
+        <p className="mb-3 text-xs text-neutral-500">
+          Resume or revisit any previous import — this list survives page
+          refreshes and lost tabs.
+        </p>
+        <ImportHistory />
+      </section>
     </div>
   );
 }

@@ -2,6 +2,8 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { ImportContextBar } from "../../components/imports/import-context-bar";
+import { ImportHistory } from "../../components/imports/import-history";
 
 interface Stats {
   processed: number;
@@ -118,21 +120,40 @@ function DashboardContent() {
 
   if (!importId) {
     return (
-      <p className="text-neutral-500">
-        No import selected. Start from the{" "}
-        <a href="/imports" className="text-blue-600 hover:underline">
-          import wizard
-        </a>
-        .
-      </p>
+      <div>
+        <h2 className="mb-1 text-base font-medium">Select an import to view</h2>
+        <p className="mb-4 text-neutral-500">
+          No import is selected yet. Pick one below, or{" "}
+          <a href="/imports" className="text-blue-600 hover:underline">
+            start a new one
+          </a>
+          .
+        </p>
+        <ImportHistory emptyMessage="No imports yet — start one in the import wizard." />
+      </div>
     );
   }
 
-  if (error) return <p className="text-red-700">{error}</p>;
-  if (!stats || !groups) return <p className="text-neutral-500">Loading…</p>;
+  if (error) {
+    return (
+      <div>
+        <ImportContextBar importId={importId} />
+        <p className="mt-4 text-red-700">{error}</p>
+      </div>
+    );
+  }
+  if (!stats || !groups) {
+    return (
+      <div>
+        <ImportContextBar importId={importId} />
+        <p className="mt-4 text-neutral-500">Loading…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
+      <ImportContextBar importId={importId} />
       <section>
         <h2 className="font-medium mb-2">Stats</h2>
         <div className="max-w-xs">

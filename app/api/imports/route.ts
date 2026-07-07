@@ -1,5 +1,19 @@
 import { NextResponse } from "next/server";
 import { ingestFile } from "../../../server/services/import.service";
+import { listImports } from "../../../server/db/repositories/imports.repo";
+
+export async function GET() {
+  const rows = await listImports();
+  const imports = rows.map((row) => ({
+    id: row.id,
+    fileName: row.file_name,
+    rowCount: row.row_count,
+    status: row.status,
+    createdAt: row.created_at,
+    completedAt: row.completed_at,
+  }));
+  return NextResponse.json({ imports });
+}
 
 function detectFileType(fileName: string): "csv" | "xlsx" | null {
   const lower = fileName.toLowerCase();

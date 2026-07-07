@@ -9,6 +9,8 @@ import { ConfidenceBucketFilter } from "../../components/review/confidence-bucke
 import { confidenceBucket, type ConfidenceBucket } from "../../components/review/confidence-bucket";
 import { RowDetailPanel } from "../../components/review/row-detail-panel";
 import type { ReviewCreator } from "../../components/review/types";
+import { ImportContextBar } from "../../components/imports/import-context-bar";
+import { ImportHistory } from "../../components/imports/import-history";
 
 function ReviewWorkspace() {
   const searchParams = useSearchParams();
@@ -50,26 +52,41 @@ function ReviewWorkspace() {
 
   if (!importId) {
     return (
-      <p className="p-6 text-neutral-500">
-        No import selected. Start from the{" "}
-        <a href="/imports" className="text-blue-600 hover:underline">
-          import wizard
-        </a>
-        .
-      </p>
+      <div className="p-6">
+        <h2 className="mb-1 text-base font-medium">Select an import to review</h2>
+        <p className="mb-4 text-neutral-500">
+          No import is selected yet. Pick a completed import below, or{" "}
+          <a href="/imports" className="text-blue-600 hover:underline">
+            start a new one
+          </a>
+          .
+        </p>
+        <ImportHistory emptyMessage="No imports yet — start one in the import wizard." />
+      </div>
     );
   }
 
   if (error) {
-    return <p className="p-6 text-red-700">{error}</p>;
+    return (
+      <div>
+        <ImportContextBar importId={importId} />
+        <p className="p-6 text-red-700">{error}</p>
+      </div>
+    );
   }
 
   if (!creators) {
-    return <p className="p-6 text-neutral-500">Loading…</p>;
+    return (
+      <div>
+        <ImportContextBar importId={importId} />
+        <p className="p-6 text-neutral-500">Loading…</p>
+      </div>
+    );
   }
 
   return (
     <div className="flex h-full flex-col">
+      <ImportContextBar importId={importId} />
       <div className="flex items-center justify-between gap-4 border-b border-neutral-200 px-6 py-3 dark:border-neutral-800">
         <ConfidenceBucketFilter active={bucketFilter} onChange={setBucketFilter} />
         <div className="flex items-center gap-4 text-xs text-neutral-500">
