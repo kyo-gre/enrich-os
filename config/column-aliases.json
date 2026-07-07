@@ -1,0 +1,20 @@
+{
+  "fullName": ["full name", "name", "creator name", "full_name"],
+  "username": ["username", "handle", "user name", "user_name"],
+  "email": ["email", "email address", "e-mail", "contact email"],
+  "profileUrl": [
+    "profile url",
+    "profile link",
+    "url",
+    "link",
+    "profile_url",
+    "instagram",
+    "instagram url",
+    "instagram handle",
+    "ig",
+    "tiktok",
+    "tiktok url",
+    "tiktok handle"
+  ],
+  "platform": ["platform", "channel", "network"]
+}
