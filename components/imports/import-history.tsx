@@ -111,8 +111,6 @@ export function ImportHistory({
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, 5000);
-    return () => clearInterval(interval);
   }, [load]);
 
   if (error) return <p className="text-sm text-red-700">{error}</p>;
