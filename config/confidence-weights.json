@@ -1,0 +1,11 @@
+{
+  "full_name": 100,
+  "display_name": 98,
+  "email": 95,
+  "username": 60,
+  "instagram": 80,
+  "tiktok": 80,
+  "generic_scrape": 55,
+  "emailAmbiguousPenalty": 15,
+  "reviewThreshold": 70
+}
