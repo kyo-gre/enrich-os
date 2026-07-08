@@ -27,12 +27,25 @@ export function scoreCandidates(
     };
   }
 
+  // A one-letter fragment ("K", "M") is what a stylized/truncated display
+  // name splits into — it's not a name, and letting it win just because it
+  // came from a "stronger" source (a real scrape) produces a worse result
+  // than a plausible guess from a weaker source. Prefer plausible evidence
+  // over implausible, regardless of source, before ranking by confidence.
+  const isPlausible = (candidate: NameCandidate): boolean => {
+    const name = (candidate.firstName ?? candidate.displayName ?? "").trim();
+    return name.length >= 2 && /[a-zA-Z]/.test(name);
+  };
+  const plausibleCandidates = candidates.filter(isPlausible);
+  const plausiblePool = plausibleCandidates.length > 0 ? plausibleCandidates : candidates;
+
   // Email is a last-resort guess, not evidence to be weighed on equal terms:
-  // a real full-name column or a successful profile scrape must always win
-  // over an email-derived guess, even one with a numerically higher or tied
-  // confidence score. Only fall back to email when nothing else is available.
-  const nonEmailCandidates = candidates.filter((c) => c.source !== "email");
-  const pool = nonEmailCandidates.length > 0 ? nonEmailCandidates : candidates;
+  // a real full-name column, a username-derived guess, or a successful
+  // profile scrape must always win over an email-derived guess, even one
+  // with a numerically higher or tied confidence score. Only fall back to
+  // email when nothing else is available.
+  const nonEmailCandidates = plausiblePool.filter((c) => c.source !== "email");
+  const pool = nonEmailCandidates.length > 0 ? nonEmailCandidates : plausiblePool;
 
   const winner = pool.reduce((strongest, candidate) =>
     candidate.confidence > strongest.confidence ? candidate : strongest,

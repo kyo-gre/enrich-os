@@ -40,4 +40,27 @@ describe("normalizeCreator", () => {
     const result = normalizeCreator({ raw: {} });
     expect(result).toEqual({});
   });
+
+  it("folds decorative 'fancy font' Unicode down to plain letters", () => {
+    const result = normalizeCreator({
+      rawFullName: "\u{1D4A5}\u{1D4CA}\u{1D4C1}\u{1D4BE}\u{1D4B6}\u{1D4C3}\u{1D4C3}\u{1D452}",
+      raw: {},
+    });
+    expect(result.fullName).toBe("Julianne");
+  });
+
+  it("title-cases an ALL-CAPS name", () => {
+    const result = normalizeCreator({ rawFullName: "BLEV", raw: {} });
+    expect(result.fullName).toBe("Blev");
+  });
+
+  it("title-cases an all-lowercase name", () => {
+    const result = normalizeCreator({ rawFullName: "hailyeah", raw: {} });
+    expect(result.fullName).toBe("Hailyeah");
+  });
+
+  it("leaves already mixed-case names untouched", () => {
+    const result = normalizeCreator({ rawFullName: "McDonald", raw: {} });
+    expect(result.fullName).toBe("McDonald");
+  });
 });

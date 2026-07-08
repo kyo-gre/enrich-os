@@ -91,6 +91,41 @@ describe("scrapeProfile", () => {
     expect(outcome?.candidate).toBeNull();
   });
 
+  it("cleans emoji and business descriptors out of a scraped display name", async () => {
+    mockedFetch.mockResolvedValueOnce({
+      html: `<meta property="og:title" content="Cher✨Aslor (@cheraslor)">`,
+      fetchedVia: "static",
+    });
+
+    const outcome = await scrapeProfile("https://www.instagram.com/cheraslor/");
+
+    expect(outcome?.candidate?.displayName).toBe("Cher Aslor");
+    expect(outcome?.candidate?.firstName).toBe("Cher");
+    expect(outcome?.candidate?.lastName).toBe("Aslor");
+  });
+
+  it("folds stylized Unicode font characters in a scraped display name", async () => {
+    mockedFetch.mockResolvedValueOnce({
+      html: `<meta property="og:title" content="\u{1D4A5}\u{1D4CA}\u{1D4C1}\u{1D4BE}\u{1D4B6}\u{1D4C3}\u{1D4C3}\u{1D452} (@juliannepilates)">`,
+      fetchedVia: "static",
+    });
+
+    const outcome = await scrapeProfile("https://www.instagram.com/juliannepilates/");
+
+    expect(outcome?.candidate?.firstName).toBe("Julianne");
+  });
+
+  it("title-cases an ALL-CAPS scraped display name", async () => {
+    mockedFetch.mockResolvedValueOnce({
+      html: `<meta property="og:title" content="BLEV (@blevwanders)">`,
+      fetchedVia: "static",
+    });
+
+    const outcome = await scrapeProfile("https://www.instagram.com/blevwanders/");
+
+    expect(outcome?.candidate?.firstName).toBe("Blev");
+  });
+
   it("produces a facebook candidate as real evidence when the page returns a real title", async () => {
     mockedFetch.mockResolvedValueOnce({
       html: `<meta property="og:title" content="Jane Doe">`,

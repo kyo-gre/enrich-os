@@ -107,6 +107,44 @@ describe("scoreCandidates", () => {
     expect(result.confidenceSource).toBe("email");
   });
 
+  /**
+   * Regression: a stylized/truncated Instagram display name like "K A Y"
+   * splits into a one-letter firstName ("K"). That must never win over a
+   * plausible guess from a weaker source, even though it's a real scrape
+   * and outranks email/username on raw source priority.
+   */
+  it("skips an implausible single-letter scrape result in favor of a plausible username guess", () => {
+    const candidates: NameCandidate[] = [
+      {
+        source: "instagram",
+        firstName: "K",
+        displayName: "K",
+        platform: "instagram",
+        confidence: 80,
+      },
+      {
+        source: "username",
+        firstName: "Kayla",
+        lastName: "Principato",
+        confidence: 60,
+      },
+      { source: "email", firstName: "kaylaprincipato", confidence: 80 },
+    ];
+    const result = scoreCandidates(candidates, weights, "1.0.0");
+    expect(result.confidenceSource).toBe("username");
+    expect(result.firstName).toBe("Kayla");
+    expect(result.lastName).toBe("Principato");
+  });
+
+  it("still uses the implausible candidate when nothing plausible exists at all", () => {
+    const candidates: NameCandidate[] = [
+      { source: "instagram", firstName: "K", displayName: "K", confidence: 80 },
+    ];
+    const result = scoreCandidates(candidates, weights, "1.0.0");
+    expect(result.confidenceSource).toBe("instagram");
+    expect(result.firstName).toBe("K");
+  });
+
   it("surfaces platform/profileUrl/socialHandle when a profile scrape is the winning evidence", () => {
     const candidates: NameCandidate[] = [
       {

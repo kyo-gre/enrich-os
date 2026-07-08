@@ -3,6 +3,7 @@ import pipelineVersionConfig from "../../config/pipeline-version.json";
 import { normalizeCreator } from "../../core/normalization/normalize";
 import { extractFromFullName } from "../../core/extraction/full-name-parser";
 import { extractFromEmail } from "../../core/extraction/email-name-parser";
+import { extractFromUsername } from "../../core/extraction/username-name-parser";
 import { scoreCandidates } from "../../core/confidence/scorer";
 import { scrapeProfile } from "../../core/profiles/adapters";
 import type { NameCandidate } from "../../shared/types";
@@ -104,6 +105,15 @@ async function enrichOne(creator: CreatorRow): Promise<void> {
     detail: fullNameCandidate ?? undefined,
   });
   if (fullNameCandidate) candidates.push(fullNameCandidate);
+
+  const usernameCandidate = extractFromUsername(normalized);
+  await addProcessingLog({
+    creatorId: creator.id,
+    step: "parsed_username",
+    status: usernameCandidate ? "success" : "skipped",
+    detail: usernameCandidate ?? undefined,
+  });
+  if (usernameCandidate) candidates.push(usernameCandidate);
 
   const emailCandidate = extractFromEmail(normalized);
   await addProcessingLog({

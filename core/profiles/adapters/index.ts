@@ -5,6 +5,7 @@ import { fetchInstagramProfile } from "./instagram.adapter";
 import { fetchTikTokProfile } from "./tiktok.adapter";
 import { fetchGenericProfile } from "./generic.adapter";
 import { isPlaceholderTitle } from "./placeholder-detection";
+import { cleanName } from "../../normalization/normalize";
 import type { ProfileAdapter, ProfilePlatform, ScrapedProfile } from "./types";
 import type { NameCandidate } from "../../../shared/types";
 
@@ -54,17 +55,22 @@ function toCandidate(
 ): NameCandidate | null {
   if (!profile) return null;
 
+  // Scraped names carry the same junk a Full Name column would (decorative
+  // "fancy font" Unicode, emoji, business descriptors like "Pilates", SHOUTY
+  // casing) — clean it the same way before it's judged or split.
+  const cleanedDisplayName = profile.displayName ? cleanName(profile.displayName) : undefined;
+
   // A blocked/unauthenticated request often gets a 200 with a generic shell
   // page instead of an error — e.g. Instagram's og:title is just "Instagram".
   // That is not evidence of anything; treating it as one would silently
   // fabricate a name from a non-answer. Reject the whole profile rather than
   // falling back to the bare username, which would only echo input we
   // already have.
-  if (profile.displayName && isPlaceholderTitle(profile.displayName, platform)) {
+  if (cleanedDisplayName && isPlaceholderTitle(cleanedDisplayName, platform)) {
     return null;
   }
 
-  const displayName = profile.displayName ?? profile.username;
+  const displayName = cleanedDisplayName || profile.username;
   if (!displayName) return null;
 
   const source = SOURCE_BY_PLATFORM[platform];
