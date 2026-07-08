@@ -7,6 +7,8 @@ export const EVIDENCE_LABELS: Record<ConfidenceSource, string> = {
   display_name: "Display Name",
   instagram: "Instagram",
   tiktok: "TikTok",
+  facebook: "Facebook",
+  youtube: "YouTube",
   generic_scrape: "Web Profile",
   manual_override: "Manual Override",
 };

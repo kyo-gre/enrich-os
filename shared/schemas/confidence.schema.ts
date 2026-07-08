@@ -7,6 +7,8 @@ export const nameCandidateSourceSchema = z.enum([
   "username",
   "instagram",
   "tiktok",
+  "facebook",
+  "youtube",
   "generic_scrape",
 ]);
 export type NameCandidateSource = z.infer<typeof nameCandidateSourceSchema>;
@@ -36,6 +38,8 @@ export const confidenceWeightsSchema = z.object({
   username: z.number().min(0).max(100),
   instagram: z.number().min(0).max(100),
   tiktok: z.number().min(0).max(100),
+  facebook: z.number().min(0).max(100),
+  youtube: z.number().min(0).max(100),
   generic_scrape: z.number().min(0).max(100),
   emailAmbiguousPenalty: z.number().min(0).max(100),
   reviewThreshold: z.number().min(0).max(100),

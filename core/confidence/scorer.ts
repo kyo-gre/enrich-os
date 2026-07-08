@@ -27,7 +27,14 @@ export function scoreCandidates(
     };
   }
 
-  const winner = candidates.reduce((strongest, candidate) =>
+  // Email is a last-resort guess, not evidence to be weighed on equal terms:
+  // a real full-name column or a successful profile scrape must always win
+  // over an email-derived guess, even one with a numerically higher or tied
+  // confidence score. Only fall back to email when nothing else is available.
+  const nonEmailCandidates = candidates.filter((c) => c.source !== "email");
+  const pool = nonEmailCandidates.length > 0 ? nonEmailCandidates : candidates;
+
+  const winner = pool.reduce((strongest, candidate) =>
     candidate.confidence > strongest.confidence ? candidate : strongest,
   );
 

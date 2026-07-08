@@ -14,6 +14,19 @@ describe("classifyProfileUrl", () => {
     );
   });
 
+  it("classifies facebook.com URLs", () => {
+    expect(classifyProfileUrl("https://www.facebook.com/janedoe")).toBe(
+      "facebook",
+    );
+  });
+
+  it("classifies youtube.com and youtu.be URLs", () => {
+    expect(classifyProfileUrl("https://www.youtube.com/@janedoe")).toBe(
+      "youtube",
+    );
+    expect(classifyProfileUrl("https://youtu.be/abc123")).toBe("youtube");
+  });
+
   it("falls back to generic for other hosts", () => {
     expect(classifyProfileUrl("https://linktr.ee/janedoe")).toBe("generic");
   });

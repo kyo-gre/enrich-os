@@ -9,6 +9,8 @@ const weights: ConfidenceWeights = {
   username: 60,
   instagram: 80,
   tiktok: 80,
+  facebook: 80,
+  youtube: 80,
   generic_scrape: 55,
   emailAmbiguousPenalty: 15,
   reviewThreshold: 70,
@@ -76,7 +78,7 @@ describe("scoreCandidates", () => {
     expect(result.needsReview).toBe(true);
   });
 
-  it("carries platform/profileUrl/socialHandle from the winning candidate", () => {
+  it("prefers a profile scrape over an email guess even when email scores higher", () => {
     const candidates: NameCandidate[] = [
       { source: "email", firstName: "Jenn", lastName: "V", confidence: 95 },
       {
@@ -89,14 +91,20 @@ describe("scoreCandidates", () => {
       },
     ];
     const result = scoreCandidates(candidates, weights, "1.0.0");
-    // email (95) still wins over instagram (80) as the stronger name evidence...
+    // Email is a last resort, not evidence competing on equal footing — any
+    // real profile scrape wins regardless of its numeric confidence.
+    expect(result.confidenceSource).toBe("instagram");
+    expect(result.platform).toBe("instagram");
+    expect(result.profileUrl).toBe("https://www.instagram.com/jennv/");
+    expect(result.socialHandle).toBe("jennv");
+  });
+
+  it("falls back to email only when no non-email candidate exists", () => {
+    const candidates: NameCandidate[] = [
+      { source: "email", firstName: "Mia", lastName: "Shpirer", confidence: 95 },
+    ];
+    const result = scoreCandidates(candidates, weights, "1.0.0");
     expect(result.confidenceSource).toBe("email");
-    // ...so platform/profileUrl/socialHandle are absent here, not backfilled
-    // from a losing candidate — enrichOne is responsible for falling back
-    // to the record's own normalized input in that case.
-    expect(result.platform).toBeUndefined();
-    expect(result.profileUrl).toBeUndefined();
-    expect(result.socialHandle).toBeUndefined();
   });
 
   it("surfaces platform/profileUrl/socialHandle when a profile scrape is the winning evidence", () => {
