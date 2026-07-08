@@ -60,6 +60,17 @@ export function extractFromUsername(
 
   if (tokens.length === 1) {
     const { firstName, lastName, split } = splitConcatenatedName(tokens[0]);
+    if (!split) {
+      // No known-name prefix found — we're not deriving anything, just
+      // echoing the handle back. Say so explicitly rather than presenting
+      // an unconfirmed guess as if it were a real name.
+      return {
+        source: "username",
+        firstName: `@${username}`,
+        confidence,
+        meta: { tokenCount: 1, splitFromConcatenated: false, isHandleFallback: true },
+      };
+    }
     const cleanedFirst = cleanName(firstName);
     if (!cleanedFirst) return null;
     const cleanedLast = lastName ? cleanName(lastName) : undefined;
@@ -68,19 +79,26 @@ export function extractFromUsername(
       firstName: cleanedFirst,
       lastName: cleanedLast || undefined,
       confidence,
-      meta: { tokenCount: 1, splitFromConcatenated: split },
+      meta: { tokenCount: 1, splitFromConcatenated: true },
     };
   }
 
   // A delimited handle ("jane.doe") could genuinely be firstname.lastname,
   // or could just as easily be two unrelated words ("strands.oflove") with
   // no name in them at all. Unlike the single-token case above, there's no
-  // fallback value in guessing blindly here — only produce a candidate when
-  // at least one token is a recognized first name, so an ungrounded split
-  // doesn't get to outrank a same-tier email guess for no real reason.
+  // value in guessing blindly here — only trust a first/last split when at
+  // least one token is a recognized first name; otherwise fall back to the
+  // same explicit "@handle" acknowledgment as the single-token case.
   const [first, ...rest] = tokens;
   const last = rest[rest.length - 1];
-  if (!isCommonFirstName(first) && !isCommonFirstName(last)) return null;
+  if (!isCommonFirstName(first) && !isCommonFirstName(last)) {
+    return {
+      source: "username",
+      firstName: `@${username}`,
+      confidence,
+      meta: { tokenCount: tokens.length, isHandleFallback: true },
+    };
+  }
 
   const cleanedFirst = cleanName(first);
   if (!cleanedFirst) return null;

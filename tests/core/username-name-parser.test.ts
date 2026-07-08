@@ -19,21 +19,29 @@ describe("extractFromUsername", () => {
     expect(result?.lastName).toBe("Aduvall");
   });
 
-  it("strips a business descriptor suffix even with no delimiter", () => {
+  /**
+   * "hailyeah" isn't in the name dictionary, so even after stripping the
+   * descriptor there's no real confirmation it's a name — this is the exact
+   * case the @handle fallback exists for. When a real scrape is available it
+   * usually wins this row anyway (see profile-adapters.test.ts); this is
+   * only what the username candidate looks like on its own.
+   */
+  it("falls back to @handle when a descriptor is stripped but no name is confirmed", () => {
     const result = extractFromUsername({ username: "hailyeahpilates" });
-    expect(result?.firstName).toBe("Hailyeah");
-    expect(result?.lastName).toBeUndefined();
+    expect(result?.firstName).toBe("@hailyeahpilates");
+    expect(result?.meta?.isHandleFallback).toBe(true);
   });
 
-  it("strips a descriptor suffix and still finds a clean single name", () => {
+  it("falls back to @handle for another unconfirmed descriptor-suffixed handle", () => {
     const result = extractFromUsername({ username: "juliannepilates" });
-    expect(result?.firstName).toBe("Julianne");
+    expect(result?.firstName).toBe("@juliannepilates");
   });
 
-  it("falls back to the whole cleaned handle when no split point is found", () => {
+  it("falls back to @handle when no split point is found at all", () => {
     const result = extractFromUsername({ username: "blevwanders" });
-    expect(result?.firstName).toBe("Blevwanders");
+    expect(result?.firstName).toBe("@blevwanders");
     expect(result?.lastName).toBeUndefined();
+    expect(result?.meta?.isHandleFallback).toBe(true);
   });
 
   it("splits a delimited handle into first/last directly", () => {

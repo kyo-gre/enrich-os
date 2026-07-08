@@ -230,4 +230,53 @@ describe("scoreCandidates", () => {
     const result = scoreCandidates(candidates, weights, "1.0.0");
     expect(result.firstName).toBe("McDonald");
   });
+
+  /**
+   * Regression: a scraped tagline ("SWIM. BIKE. ULTRA RUN") splits into
+   * grammatically fine capitalized words ("Swim." / "Run") that pass the
+   * plausibility check and outrank a same-tier username guess on raw
+   * confidence (80 vs 60) — even though the username guess ("Rachel") is
+   * dictionary-confirmed and the scrape result isn't a name at all. A
+   * verified match must win regardless of which source scores higher.
+   */
+  it("prefers a dictionary-confirmed username match over an unconfirmed higher-confidence scrape", () => {
+    const candidates: NameCandidate[] = [
+      { source: "instagram", firstName: "Swim.", lastName: "Run", confidence: 80 },
+      { source: "username", firstName: "Rachel", lastName: "Salwaysrunning", confidence: 60 },
+      { source: "email", firstName: "letsgetfitwithrachel", confidence: 80, meta: { ambiguous: true } },
+    ];
+    const result = scoreCandidates(candidates, weights, "1.0.0");
+    expect(result.confidenceSource).toBe("username");
+    expect(result.firstName).toBe("Rachel");
+  });
+
+  it("treats an @handle fallback the same as email — last resort, not preferred over a real scrape", () => {
+    const candidates: NameCandidate[] = [
+      { source: "instagram", firstName: "Cher", lastName: "Aslor", confidence: 80 },
+      {
+        source: "username",
+        firstName: "@cheraslor",
+        confidence: 60,
+        meta: { isHandleFallback: true },
+      },
+    ];
+    const result = scoreCandidates(candidates, weights, "1.0.0");
+    expect(result.confidenceSource).toBe("instagram");
+    expect(result.firstName).toBe("Cher");
+  });
+
+  it("picks the higher-confidence option between two last-resort candidates (email over @handle)", () => {
+    const candidates: NameCandidate[] = [
+      {
+        source: "username",
+        firstName: "@strands.oflove",
+        confidence: 60,
+        meta: { isHandleFallback: true },
+      },
+      { source: "email", firstName: "jessikah", confidence: 80, meta: { ambiguous: true } },
+    ];
+    const result = scoreCandidates(candidates, weights, "1.0.0");
+    expect(result.confidenceSource).toBe("email");
+    expect(result.firstName).toBe("Jessikah");
+  });
 });

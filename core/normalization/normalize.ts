@@ -5,7 +5,7 @@ import { titleCaseIfShouty } from "./title-case";
 import type { MappedCreatorInput, NormalizedCreator } from "../../shared/types";
 
 /** A bio-style display name ("Name | tag | tag") puts the actual name first — keep only that segment. */
-function stripBioTags(text: string): string {
+export function stripBioTags(text: string): string {
   const pipeIndex = text.indexOf("|");
   return pipeIndex === -1 ? text : text.slice(0, pipeIndex);
 }

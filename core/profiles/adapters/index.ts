@@ -5,7 +5,7 @@ import { fetchInstagramProfile } from "./instagram.adapter";
 import { fetchTikTokProfile } from "./tiktok.adapter";
 import { fetchGenericProfile } from "./generic.adapter";
 import { isPlaceholderTitle } from "./placeholder-detection";
-import { cleanName } from "../../normalization/normalize";
+import { cleanName, stripBioTags } from "../../normalization/normalize";
 import { containsDescriptorWord } from "../../normalization/descriptor-list";
 import { foldStylizedUnicode } from "../../normalization/unicode-fold";
 import type { ProfileAdapter, ProfilePlatform, ScrapedProfile } from "./types";
@@ -72,28 +72,44 @@ function toCandidate(
     return null;
   }
 
-  const displayName = cleanedDisplayName || profile.username;
-  if (!displayName) return null;
+  // No real display name was found at all — the only thing left is the bare
+  // handle from the URL itself, which isn't a name, it's an echo of input we
+  // already have. Say so explicitly ("@handle") instead of presenting it as
+  // if it were a confident answer, and mark it so the scorer treats it as
+  // the same last-resort tier as an email guess.
+  if (!cleanedDisplayName) {
+    if (!profile.username) return null;
+    const source = SOURCE_BY_PLATFORM[platform];
+    return {
+      source,
+      firstName: `@${profile.username}`,
+      platform,
+      profileUrl,
+      socialHandle: profile.username,
+      confidence: confidenceWeights[source],
+      meta: { username: profile.username, bio: profile.bio, scraped: true, isHandleFallback: true },
+    };
+  }
 
-  // A descriptor word anywhere in the display name ("San Diego Hairstylist")
-  // is a strong signal the whole label is a business/branded tagline, not a
-  // person's name — including the part left over after the descriptor
-  // itself is stripped ("San Diego" is where the business is, not who runs
-  // it). Checked against the Unicode-folded text: real display names often
-  // spell descriptor words in stylized "fancy font" Unicode (a common
-  // Instagram styling trick) that a plain-ASCII regex won't match until it's
-  // folded to regular letters first.
-  const businessLike = Boolean(
-    profile.displayName && containsDescriptorWord(foldStylizedUnicode(profile.displayName)),
+  // A descriptor word in the display name's *name portion* ("San Diego
+  // Hairstylist") is a strong signal the whole label is a business/branded
+  // tagline, not a person's name — including the part left over after the
+  // descriptor itself is stripped ("San Diego" is where the business is,
+  // not who runs it). Checked on the bio-tag-stripped, Unicode-folded text:
+  // checking the full raw string would also catch descriptor words sitting
+  // in unrelated bio tags after a "Name | Coach | Founder" pipe, wrongly
+  // flagging a perfectly good name just because of what follows it.
+  const businessLike = containsDescriptorWord(
+    foldStylizedUnicode(stripBioTags(profile.displayName!)),
   );
 
   const source = SOURCE_BY_PLATFORM[platform];
-  const { firstName, lastName } = splitDisplayName(displayName);
+  const { firstName, lastName } = splitDisplayName(cleanedDisplayName);
   return {
     source,
     firstName,
     lastName,
-    displayName,
+    displayName: cleanedDisplayName,
     platform,
     profileUrl,
     socialHandle: profile.username,

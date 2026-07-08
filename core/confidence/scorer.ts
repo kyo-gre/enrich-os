@@ -1,4 +1,5 @@
 import { titleCaseIfShouty } from "../normalization/title-case";
+import { isCommonFirstName } from "../extraction/common-first-names";
 import type {
   ConfidenceWeights,
   NameCandidate,
@@ -46,13 +47,36 @@ export function scoreCandidates(
   const plausibleCandidates = candidates.filter(isPlausible);
   const plausiblePool = plausibleCandidates.length > 0 ? plausibleCandidates : candidates;
 
-  // Email is a last-resort guess, not evidence to be weighed on equal terms:
-  // a real full-name column, a username-derived guess, or a successful
-  // profile scrape must always win over an email-derived guess, even one
-  // with a numerically higher or tied confidence score. Only fall back to
-  // email when nothing else is available.
-  const nonEmailCandidates = plausiblePool.filter((c) => c.source !== "email");
-  const pool = nonEmailCandidates.length > 0 ? nonEmailCandidates : plausiblePool;
+  // Email is a last-resort guess, not evidence to be weighed on equal terms —
+  // and so is an explicit "@handle" fallback (see username-name-parser.ts /
+  // profiles/adapters/index.ts): both are an honest admission that nothing
+  // better was found, not a guess to compete with real evidence. A real
+  // full-name column, a username-derived guess, or a successful profile
+  // scrape must always win over either, even with a numerically higher or
+  // tied confidence score. Only fall back to this tier when nothing else is
+  // available.
+  const isLastResort = (c: NameCandidate): boolean =>
+    c.source === "email" || c.meta?.isHandleFallback === true;
+  const nonLastResort = plausiblePool.filter((c) => !isLastResort(c));
+  const fallbackPool = nonLastResort.length > 0 ? nonLastResort : plausiblePool;
+
+  // Within that, a candidate whose firstName/lastName matches a recognized
+  // name (or came straight from a Full Name column) is worth more than one
+  // that merely looks plausible — e.g. a scraped tagline like "Swim. Bike.
+  // Ultra Run" reads as fine, capitalized words, but "Rachel" from a
+  // dictionary-confirmed username split is actually a name. Prefer that
+  // whenever it exists, regardless of which one has the higher raw
+  // confidence score.
+  const isVerified = (c: NameCandidate): boolean => {
+    if (c.meta?.isHandleFallback === true) return false;
+    if (c.source === "full_name") return true;
+    return Boolean(
+      (c.firstName && isCommonFirstName(c.firstName)) ||
+        (c.lastName && isCommonFirstName(c.lastName)),
+    );
+  };
+  const verifiedCandidates = fallbackPool.filter(isVerified);
+  const pool = verifiedCandidates.length > 0 ? verifiedCandidates : fallbackPool;
 
   const winner = pool.reduce((strongest, candidate) =>
     candidate.confidence > strongest.confidence ? candidate : strongest,

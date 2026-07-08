@@ -148,6 +148,37 @@ describe("scrapeProfile", () => {
     expect(outcome?.candidate?.meta?.businessLike).toBe(false);
   });
 
+  /**
+   * Regression: a real name followed by bio tags ("Name | Coach | Founder")
+   * must not get penalized for descriptor words that only appear in the
+   * tags, not the name itself — checking the full raw string (including
+   * everything after the "|") wrongly flagged a correct result.
+   */
+  it("does not flag a real name as businessLike just because bio tags after it contain descriptor words", async () => {
+    mockedFetch.mockResolvedValueOnce({
+      html: `<meta property="og:title" content="Heidi Gaub | Ultrarunner | Coach (@strong.mama.miles)">`,
+      fetchedVia: "static",
+    });
+
+    const outcome = await scrapeProfile("https://www.instagram.com/strong.mama.miles/");
+
+    expect(outcome?.candidate?.firstName).toBe("Heidi");
+    expect(outcome?.candidate?.lastName).toBe("Gaub");
+    expect(outcome?.candidate?.meta?.businessLike).toBe(false);
+  });
+
+  it("falls back to an @handle candidate when no display name is found at all", async () => {
+    mockedFetch.mockResolvedValueOnce({
+      html: `<meta name="irrelevant" content="nothing useful here">`,
+      fetchedVia: "static",
+    });
+
+    const outcome = await scrapeProfile("https://www.instagram.com/somehandle/");
+
+    expect(outcome?.candidate?.firstName).toBe("@somehandle");
+    expect(outcome?.candidate?.meta?.isHandleFallback).toBe(true);
+  });
+
   it("produces a facebook candidate as real evidence when the page returns a real title", async () => {
     mockedFetch.mockResolvedValueOnce({
       html: `<meta property="og:title" content="Jane Doe">`,
