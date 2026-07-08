@@ -1,3 +1,4 @@
+import { titleCaseIfShouty } from "../normalization/title-case";
 import type {
   ConfidenceWeights,
   NameCandidate,
@@ -30,9 +31,15 @@ export function scoreCandidates(
   // A one-letter fragment ("K", "M") is what a stylized/truncated display
   // name splits into — it's not a name, and letting it win just because it
   // came from a "stronger" source (a real scrape) produces a worse result
-  // than a plausible guess from a weaker source. Prefer plausible evidence
-  // over implausible, regardless of source, before ranking by confidence.
+  // than a plausible guess from a weaker source. A "businessLike" flag (see
+  // profiles/adapters/index.ts) is the same kind of problem in disguise: the
+  // remaining text after a job-title word is stripped ("San Diego" from "San
+  // Diego Hairstylist") looks perfectly plausible on its own, even though
+  // it's a location, not a name. Both get the same treatment: prefer
+  // plausible, non-business-flagged evidence over the alternative,
+  // regardless of source, before ranking by confidence.
   const isPlausible = (candidate: NameCandidate): boolean => {
+    if (candidate.meta?.businessLike === true) return false;
     const name = (candidate.firstName ?? candidate.displayName ?? "").trim();
     return name.length >= 2 && /[a-zA-Z]/.test(name);
   };
@@ -55,9 +62,17 @@ export function scoreCandidates(
   const belowThreshold = winner.confidence < weights.reviewThreshold;
   const needsReview = isAmbiguous || belowThreshold;
 
+  // Only the email/full-name extractors return lowercase tokens verbatim
+  // (they're pure string-splitting, with no display-quality cleanup applied
+  // — see their own tests, which assert exactly that). Whichever candidate
+  // wins, the field the operator actually sees should look like a name
+  // ("Jessikah", not "jessikah") regardless of which source produced it.
+  const firstName = winner.firstName ? titleCaseIfShouty(winner.firstName) : winner.firstName;
+  const lastName = winner.lastName ? titleCaseIfShouty(winner.lastName) : winner.lastName;
+
   return {
-    firstName: winner.firstName,
-    lastName: winner.lastName,
+    firstName,
+    lastName,
     displayName: winner.displayName,
     platform: winner.platform,
     profileUrl: winner.profileUrl,

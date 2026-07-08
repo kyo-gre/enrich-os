@@ -6,6 +6,8 @@ import { fetchTikTokProfile } from "./tiktok.adapter";
 import { fetchGenericProfile } from "./generic.adapter";
 import { isPlaceholderTitle } from "./placeholder-detection";
 import { cleanName } from "../../normalization/normalize";
+import { containsDescriptorWord } from "../../normalization/descriptor-list";
+import { foldStylizedUnicode } from "../../normalization/unicode-fold";
 import type { ProfileAdapter, ProfilePlatform, ScrapedProfile } from "./types";
 import type { NameCandidate } from "../../../shared/types";
 
@@ -73,6 +75,18 @@ function toCandidate(
   const displayName = cleanedDisplayName || profile.username;
   if (!displayName) return null;
 
+  // A descriptor word anywhere in the display name ("San Diego Hairstylist")
+  // is a strong signal the whole label is a business/branded tagline, not a
+  // person's name — including the part left over after the descriptor
+  // itself is stripped ("San Diego" is where the business is, not who runs
+  // it). Checked against the Unicode-folded text: real display names often
+  // spell descriptor words in stylized "fancy font" Unicode (a common
+  // Instagram styling trick) that a plain-ASCII regex won't match until it's
+  // folded to regular letters first.
+  const businessLike = Boolean(
+    profile.displayName && containsDescriptorWord(foldStylizedUnicode(profile.displayName)),
+  );
+
   const source = SOURCE_BY_PLATFORM[platform];
   const { firstName, lastName } = splitDisplayName(displayName);
   return {
@@ -84,7 +98,7 @@ function toCandidate(
     profileUrl,
     socialHandle: profile.username,
     confidence: confidenceWeights[source],
-    meta: { username: profile.username, bio: profile.bio, scraped: true },
+    meta: { username: profile.username, bio: profile.bio, scraped: true, businessLike },
   };
 }
 

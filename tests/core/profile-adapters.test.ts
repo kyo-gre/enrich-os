@@ -126,6 +126,28 @@ describe("scrapeProfile", () => {
     expect(outcome?.candidate?.firstName).toBe("Blev");
   });
 
+  it("flags a display name containing a job-title descriptor as businessLike", async () => {
+    mockedFetch.mockResolvedValueOnce({
+      html: `<meta property="og:title" content="San Diego Hairstylist (@strands.oflove)">`,
+      fetchedVia: "static",
+    });
+
+    const outcome = await scrapeProfile("https://www.instagram.com/strands.oflove/");
+
+    expect(outcome?.candidate?.meta?.businessLike).toBe(true);
+  });
+
+  it("does not flag a clean personal display name as businessLike", async () => {
+    mockedFetch.mockResolvedValueOnce({
+      html: `<meta property="og:title" content="Cher Aslor (@cheraslor)">`,
+      fetchedVia: "static",
+    });
+
+    const outcome = await scrapeProfile("https://www.instagram.com/cheraslor/");
+
+    expect(outcome?.candidate?.meta?.businessLike).toBe(false);
+  });
+
   it("produces a facebook candidate as real evidence when the page returns a real title", async () => {
     mockedFetch.mockResolvedValueOnce({
       html: `<meta property="og:title" content="Jane Doe">`,

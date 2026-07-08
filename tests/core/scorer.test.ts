@@ -136,6 +136,29 @@ describe("scoreCandidates", () => {
     expect(result.lastName).toBe("Principato");
   });
 
+  /**
+   * Regression: "San Diego Hairstylist" scraped off a business account
+   * splits into a grammatically fine-looking "San" / "Hairstylist" — passes
+   * the basic plausibility check, but is a job title, not a name. The
+   * businessLike flag must demote it below a decent email guess.
+   */
+  it("skips a business-tagline scrape result in favor of an email guess", () => {
+    const candidates: NameCandidate[] = [
+      {
+        source: "instagram",
+        firstName: "San",
+        lastName: "Hairstylist",
+        displayName: "San Hairstylist",
+        confidence: 80,
+        meta: { businessLike: true },
+      },
+      { source: "email", firstName: "jessikah", confidence: 80, meta: { ambiguous: true } },
+    ];
+    const result = scoreCandidates(candidates, weights, "1.0.0");
+    expect(result.confidenceSource).toBe("email");
+    expect(result.firstName).toBe("Jessikah");
+  });
+
   it("still uses the implausible candidate when nothing plausible exists at all", () => {
     const candidates: NameCandidate[] = [
       { source: "instagram", firstName: "K", displayName: "K", confidence: 80 },
@@ -184,5 +207,27 @@ describe("scoreCandidates", () => {
     const result = scoreCandidates(candidates, weights, "1.0.0");
     expect(result.confidenceSource).toBe("full_name");
     expect(result.email).toBeUndefined();
+  });
+
+  /**
+   * The email/full-name extractors return lowercase tokens verbatim by
+   * design (pure string-splitting — see their own unit tests). Whichever
+   * candidate wins, the operator-facing name should still look like a name.
+   */
+  it("title-cases the winning candidate's name regardless of source", () => {
+    const candidates: NameCandidate[] = [
+      { source: "email", firstName: "mia", lastName: "shpirer", confidence: 95 },
+    ];
+    const result = scoreCandidates(candidates, weights, "1.0.0");
+    expect(result.firstName).toBe("Mia");
+    expect(result.lastName).toBe("Shpirer");
+  });
+
+  it("leaves an already mixed-case name untouched", () => {
+    const candidates: NameCandidate[] = [
+      { source: "full_name", firstName: "McDonald", confidence: 100 },
+    ];
+    const result = scoreCandidates(candidates, weights, "1.0.0");
+    expect(result.firstName).toBe("McDonald");
   });
 });

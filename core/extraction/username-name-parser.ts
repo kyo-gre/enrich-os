@@ -72,8 +72,16 @@ export function extractFromUsername(
     };
   }
 
+  // A delimited handle ("jane.doe") could genuinely be firstname.lastname,
+  // or could just as easily be two unrelated words ("strands.oflove") with
+  // no name in them at all. Unlike the single-token case above, there's no
+  // fallback value in guessing blindly here — only produce a candidate when
+  // at least one token is a recognized first name, so an ungrounded split
+  // doesn't get to outrank a same-tier email guess for no real reason.
   const [first, ...rest] = tokens;
   const last = rest[rest.length - 1];
+  if (!isCommonFirstName(first) && !isCommonFirstName(last)) return null;
+
   const cleanedFirst = cleanName(first);
   if (!cleanedFirst) return null;
   return {

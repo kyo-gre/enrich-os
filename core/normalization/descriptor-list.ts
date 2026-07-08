@@ -13,6 +13,18 @@ export function stripDescriptors(text: string): string {
   return text.replace(DESCRIPTOR_PATTERN, "");
 }
 
+/**
+ * True if the raw (uncleaned) text contains a recognized descriptor word
+ * anywhere — a strong signal the whole string is a business/branded label
+ * ("San Diego Hairstylist") rather than a person's name, even for the part
+ * that isn't the descriptor itself ("San Diego" is the business's location,
+ * not a name, but nothing about "San Diego" alone looks wrong on its own).
+ */
+export function containsDescriptorWord(text: string): boolean {
+  DESCRIPTOR_PATTERN.lastIndex = 0;
+  return DESCRIPTOR_PATTERN.test(text);
+}
+
 const SORTED_DESCRIPTOR_SUFFIXES = [...descriptors]
   .map((word) => word.toLowerCase().replace(/[^a-z]/g, ""))
   .filter(Boolean)
