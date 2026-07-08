@@ -1,5 +1,12 @@
 import descriptors from "../../config/descriptor-list.json";
 
+const DESCRIPTOR_WORD_SET = new Set(descriptors.map((d) => d.toLowerCase()));
+
+/** True if the whole (lowercased) word is exactly a known descriptor/title — not a substring match. */
+export function isDescriptorWord(word: string): boolean {
+  return DESCRIPTOR_WORD_SET.has(word.toLowerCase());
+}
+
 const DESCRIPTOR_PATTERN = new RegExp(
   `\\b(${descriptors
     .map((d) => d.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))

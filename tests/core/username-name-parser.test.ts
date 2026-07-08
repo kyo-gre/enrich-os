@@ -32,9 +32,17 @@ describe("extractFromUsername", () => {
     expect(result?.meta?.isHandleFallback).toBe(true);
   });
 
-  it("falls back to @handle for another unconfirmed descriptor-suffixed handle", () => {
+  it("recognizes the remainder directly when it's itself a confirmed name", () => {
     const result = extractFromUsername({ username: "juliannepilates" });
-    expect(result?.firstName).toBe("@juliannepilates");
+    expect(result?.firstName).toBe("Julianne");
+    expect(result?.lastName).toBeUndefined();
+    expect(result?.meta?.isHandleFallback).toBeUndefined();
+  });
+
+  it("drops a title/honorific token and recognizes the real name in the other position", () => {
+    const result = extractFromUsername({ username: "mrs_krysta_" });
+    expect(result?.firstName).toBe("Krysta");
+    expect(result?.lastName).toBeUndefined();
   });
 
   it("falls back to @handle when no split point is found at all", () => {

@@ -14,6 +14,10 @@ describe("extractFromEmail — worked examples", () => {
     expect(candidate?.meta?.ambiguous).toBe(false);
   });
 
+  // "Robertson" is itself a rare-but-real recognized first name in the
+  // expanded name dictionary, so this is genuinely ambiguous (both tokens
+  // could be the first name) rather than a confident first.last — the
+  // resulting names are unaffected, only the confidence/review flag is.
   it("bonnie.robertson13@gmail.com -> Bonnie Robertson (trailing digits stripped)", () => {
     const candidate = extractFromEmail({
       email: "bonnie.robertson13@gmail.com",
@@ -21,7 +25,7 @@ describe("extractFromEmail — worked examples", () => {
     expect(candidate).toMatchObject({
       firstName: "bonnie",
       lastName: "robertson",
-      confidence: 95,
+      confidence: 80,
     });
   });
 
